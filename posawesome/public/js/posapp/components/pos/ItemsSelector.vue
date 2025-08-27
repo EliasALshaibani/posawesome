@@ -224,7 +224,7 @@
 									<div class="card-item-content">
 										<div class="card-item-header">
 											<h4 class="card-item-name">{{ item.item_name }}</h4>
-											<span class="card-item-code">{{ item.item_code }}</span>
+											
 										</div>
 										<div class="card-item-details">
 											<div class="card-item-price">
@@ -271,7 +271,7 @@
 													</span>
 												</div>
 											</div>
-											<div class="card-item-stock">
+											<!-- <div class="card-item-stock">
 												<v-icon size="small" class="stock-icon"
 													>mdi-package-variant</v-icon
 												>
@@ -289,7 +289,7 @@
 													}}
 												</span>
 												<span class="stock-uom">{{ item.stock_uom || "" }}</span>
-											</div>
+											</div> -->
 										</div>
 									</div>
 								</div>
@@ -2967,13 +2967,13 @@ export default {
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
-
+/*genix 27082025*/
 /* Enhanced Card View Grid Layout - 3 items per row */
 .items-card-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 16px;
-	padding: 16px;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 10px;
+	padding: 10px;
 	height: calc(100% - 80px);
 	overflow-y: auto;
 	scrollbar-width: thin;
@@ -3014,7 +3014,7 @@ export default {
 
 .card-item-image-container {
 	position: relative;
-	height: 120px;
+	height: 100px;
 	overflow: hidden;
 	background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
 }
@@ -3039,7 +3039,7 @@ export default {
 }
 
 .card-item-content {
-	padding: 12px 16px 16px;
+	padding: 0px 2px 0px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -3054,7 +3054,7 @@ export default {
 
 .card-item-name {
 	font-size: 0.9rem;
-	font-weight: 600;
+	font-weight: 400;
 	color: var(--text-primary, #2c3e50);
 	margin: 0 0 4px 0;
 	line-height: 1.3;
