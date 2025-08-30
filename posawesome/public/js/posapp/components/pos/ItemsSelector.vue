@@ -2979,6 +2979,23 @@ export default {
 	scrollbar-width: thin;
 	scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
+@media (min-width: 960px) {
+  .items-card-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+@media (min-width: 1264px) {
+  .items-card-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+@media (min-width: 1904px) {
+  .items-card-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
 
 .items-card-grid::-webkit-scrollbar {
 	width: 8px;
@@ -3002,7 +3019,7 @@ export default {
 	cursor: pointer;
 	display: flex;
 	flex-direction: column;
-	height: auto;
+	height: 15vh;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
