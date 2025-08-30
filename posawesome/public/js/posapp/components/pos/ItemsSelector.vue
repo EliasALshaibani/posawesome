@@ -2985,7 +2985,7 @@ export default {
   }
 }
 
-@media (min-width: 1264px) {
+@media (min-width: 1200px) {
   .items-card-grid {
     grid-template-columns: repeat(6, 1fr);
   }
@@ -3064,9 +3064,9 @@ export default {
 }
 
 .card-item-header {
-	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+/*	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 	padding-bottom: 8px;
-	margin-bottom: 4px;
+	margin-bottom: 4px;  */
 }
 
 .card-item-name {
