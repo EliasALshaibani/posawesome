@@ -268,7 +268,8 @@
 													</span>
 												</div>
 											</div>
-											<div class="card-item-stock">
+											
+											<!-- <div class="card-item-stock">
 												<v-icon size="small" class="stock-icon"
 													>mdi-package-variant</v-icon
 												>
@@ -286,7 +287,7 @@
 													}}
 												</span>
 												<span class="stock-uom">{{ item.stock_uom || "" }}</span>
-											</div>
+											</div> -->
 										</div>
 									</div>
 								</div>
