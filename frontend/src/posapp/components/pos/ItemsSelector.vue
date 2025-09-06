@@ -355,14 +355,31 @@
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
 			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
 				<v-col cols="12" class="mb-2">
-					<v-select
+					<!-- <v-select
 						:items="items_group"
 						:label="frappe._('Items Group')"
 						density="compact"
 						variant="solo"
 						hide-details
 						v-model="item_group"
-					></v-select>
+					></v-select> -->
+					<v-btn-toggle
+						v-model="item_group"
+						color="primary"
+						mandatory
+						rounded
+						group
+						class="flex-wrap"
+  						>
+							<v-btn
+								v-for="group in items_group"
+								:key="group"
+								:value="group"
+								size="small"
+    							>
+      							{{ group }}
+    						</v-btn>
+  					</v-btn-toggle>
 				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown !== false">
 					<v-text-field
