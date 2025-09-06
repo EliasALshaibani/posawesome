@@ -3040,7 +3040,7 @@ export default {
 	-moz-osx-font-smoothing: grayscale;
 }
 
-/* Enhanced Card View Grid Layout - 3 items per row */
+/* Enhanced Card View Grid Layout - 6 items per row */
 .items-card-grid {
 	display: grid;
 	grid-template-columns: repeat(6, 1fr);
@@ -3142,6 +3142,7 @@ export default {
 	font-family:
 		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
 		sans-serif;
+	padding-left: 10px;
 }
 
 .card-item-code {
