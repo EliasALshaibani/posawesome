@@ -3043,7 +3043,7 @@ export default {
 /* Enhanced Card View Grid Layout - 3 items per row */
 .items-card-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(6, 1fr);
 	gap: 16px;
 	padding: 16px;
 	height: calc(100% - 80px);
@@ -3074,7 +3074,8 @@ export default {
 	cursor: pointer;
 	display: flex;
 	flex-direction: column;
-	height: auto;
+	height: 15vh;
+	width: 10vh;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -3111,17 +3112,18 @@ export default {
 }
 
 .card-item-content {
-	padding: 12px 16px 16px;
+	padding: 0px 0px 0px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	align-items: center;
 }
 
 .card-item-header {
-	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+/* 	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 	padding-bottom: 8px;
-	margin-bottom: 4px;
+	margin-bottom: 4px; */
 }
 
 .card-item-name {
@@ -3451,7 +3453,7 @@ export default {
 /* Responsive breakpoints */
 @media (max-width: 1200px) {
 	.items-card-grid {
-		grid-template-columns: repeat(2, 1fr);
+		grid-template-columns: repeat(6, 1fr);
 		gap: 12px;
 		padding: 12px;
 	}
