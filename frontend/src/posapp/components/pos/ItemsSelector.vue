@@ -221,7 +221,7 @@
 									<div class="card-item-content">
 										<div class="card-item-header">
 											<h4 class="card-item-name">{{ item.item_name }}</h4>
-											<!-- <span class="card-item-code">{#{{ item.item_code }}#}</span> -->
+											<!-- <span class="card-item-code"> </span> -->
 										</div>
 										<div class="card-item-details">
 											<div class="card-item-price">
