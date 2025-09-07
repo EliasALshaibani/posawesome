@@ -3127,10 +3127,10 @@ export default {
 }
 
 .card-item-name {
-	font-size: 0.9rem;
-	font-weight: 600;
+	font-size: 0.5rem;
+	font-weight: 800;
 	color: var(--text-primary, #2c3e50);
-	margin: 0 0 4px 0;
+	margin: 6px 0px -25;
 	line-height: 1.3;
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
