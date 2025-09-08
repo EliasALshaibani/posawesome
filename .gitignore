@@ -5,8 +5,7 @@
 tags
 posawesome/docs/current
 node_modules
-posawesome/public/dist
 # ignore Vue single-file component styles generated during build
 **/*.vue.css
-/dist
 package-lock.json
+
