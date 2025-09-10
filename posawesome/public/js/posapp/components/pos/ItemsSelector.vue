@@ -2638,6 +2638,8 @@ export default {
 				// Load initial items if we have a profile
 				if (this.pos_profile && this.pos_profile.name) {
 					console.log("Loading items with POS Profile:", this.pos_profile.name);
+					this.get_items_groups();
+					this.get_items_groups();
 					await this.get_items();
 					this.verifyServerItemCount();
 				} else {
@@ -2651,6 +2653,7 @@ export default {
 		// Event listeners
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
+			this.get_items_groups();
 			this.get_items();
 			this.items_view = this.pos_profile.posa_default_card_view ? "card" : "list";
 		});

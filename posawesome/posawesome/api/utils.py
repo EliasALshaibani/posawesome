@@ -8,6 +8,48 @@ import frappe
 HAS_VARIANTS_EXCLUSION = {"has_variants": 0}
 
 
+def expand_item_groups(item_groups):
+    """Expand any parent item groups to include their children.
+
+    This function takes a list of item groups and expands any parent groups
+    to include all their descendants, while keeping leaf groups as-is.
+    """
+    if not item_groups:
+        return item_groups
+
+    try:
+        from erpnext.utilities.doctype.item_group.item_group import get_child_groups
+    except Exception:
+        get_child_groups = None
+
+    expanded_groups = set()
+    for group in item_groups:
+        if not group:
+            continue
+
+        # Check if this is a parent group
+        is_group = frappe.db.get_value("Item Group", group, "is_group")
+
+        if is_group:
+            # If it's a parent group, get all its children
+            if get_child_groups:
+                try:
+                    descendants = get_child_groups(group) or []
+                    expanded_groups.update(descendants)
+                except Exception:
+                    # Fallback to database method
+                    descendants = frappe.db.get_descendants("Item Group", group) or []
+                    expanded_groups.update(descendants)
+            else:
+                descendants = frappe.db.get_descendants("Item Group", group) or []
+                expanded_groups.update(descendants)
+        else:
+            # If it's a leaf group, add it directly
+            expanded_groups.add(group)
+
+    return list(expanded_groups)
+
+
 @frappe.whitelist()
 def get_active_pos_profile(user=None):
     """Return the active POS profile for the given user."""
@@ -34,21 +76,21 @@ def get_default_warehouse(company=None):
 
 @cache
 def get_item_groups(pos_profile: str) -> list[str]:
-    """Return item groups linked to a POS profile using the ORM.
+    """Return all item groups for a POS profile, including descendants.
 
-    Results are cached to avoid duplicate database calls when the same
-    profile's item groups are requested multiple times within a process.
-    Handles the case where the child DocType is missing by returning an
-    empty list instead of raising a database error.
+    The linked groups from the ``POS Item Group`` child table are
+    expanded to include all of their descendants. Results are cached
+    to avoid duplicate database calls within a process.
+
+
     """
-    if not pos_profile:
+    if not pos_profile or not frappe.db.exists("DocType", "POS Item Group"):
         return []
 
-    if not frappe.db.exists("DocType", "POS Profile Item Group"):
-        return []
-
-    return frappe.get_all(
-        "POS Profile Item Group",
+    groups = frappe.get_all(
+        "POS Item Group",
         filters={"parent": pos_profile},
         pluck="item_group",
     )
+
+    return expand_item_groups(groups)
