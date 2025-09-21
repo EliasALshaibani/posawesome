@@ -122,9 +122,7 @@ def make_payment_request(**args):
         grand_total = grand_total - loyalty_amount
 
     bank_account = (
-        get_party_bank_account(args.get("party_type"), args.get("party"))
-        if args.get("party_type")
-        else ""
+        get_party_bank_account(args.get("party_type"), args.get("party")) if args.get("party_type") else ""
     )
 
     existing_payment_request = None
@@ -149,9 +147,7 @@ def make_payment_request(**args):
         pr = frappe.get_doc("Payment Request", existing_payment_request)
     else:
         if args.order_type != "Shopping Cart":
-            existing_payment_request_amount = get_existing_payment_request_amount(
-                args.dt, args.dn
-            )
+            existing_payment_request_amount = get_existing_payment_request_amount(args.dt, args.dn)
 
             if existing_payment_request_amount:
                 grand_total -= existing_payment_request_amount
@@ -208,35 +204,21 @@ def get_amount(ref_doc, payment_account=None):
         return grand_total
 
     else:
-        frappe.throw(
-            _("Payment Entry is already created or payment account is not matched")
-        )
+        frappe.throw(_("Payment Entry is already created or payment account is not matched"))
 
 
-def redeeming_customer_credit(
-    invoice_doc, data, is_payment_entry, total_cash, cash_account, payments
-):
+def redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments):
     # redeeming customer credit with journal voucher
     today = nowdate()
     if data.get("redeemed_customer_credit"):
-        cost_center = frappe.get_value(
-            "POS Profile", invoice_doc.pos_profile, "cost_center"
-        )
+        cost_center = frappe.get_value("POS Profile", invoice_doc.pos_profile, "cost_center")
         if not cost_center:
-            cost_center = frappe.get_value(
-                "Company", invoice_doc.company, "cost_center"
-            )
+            cost_center = frappe.get_value("Company", invoice_doc.company, "cost_center")
         if not cost_center:
-            frappe.throw(
-                _("Cost Center is not set in pos profile {}").format(
-                    invoice_doc.pos_profile
-                )
-            )
+            frappe.throw(_("Cost Center is not set in pos profile {}").format(invoice_doc.pos_profile))
         for row in data.get("customer_credit_dict"):
             if row["type"] == "Invoice" and row["credit_to_redeem"]:
-                outstanding_invoice = frappe.get_doc(
-                    "Sales Invoice", row["credit_origin"]
-                )
+                outstanding_invoice = frappe.get_doc("Sales Invoice", row["credit_origin"])
 
                 jv_doc = frappe.get_doc(
                     {
@@ -283,9 +265,7 @@ def redeeming_customer_credit(
                     jv_doc.submit()
                 except Exception as e:
                     frappe.log_error(frappe.get_traceback(), "POSAwesome JV Error")
-                    frappe.throw(
-                        _("Unable to create Journal Entry for customer credit.")
-                    )
+                    frappe.throw(_("Unable to create Journal Entry for customer credit."))
 
     if is_payment_entry and total_cash > 0:
         for payment in payments:
@@ -318,9 +298,7 @@ def redeeming_customer_credit(
 
             ref_row = payment_entry_doc.append("references", {})
             ref_row.update(payment_reference)
-            ensure_child_doctype(
-                payment_entry_doc, "references", "Payment Entry Reference"
-            )
+            ensure_child_doctype(payment_entry_doc, "references", "Payment Entry Reference")
             payment_entry_doc.flags.ignore_permissions = True
             frappe.flags.ignore_account_permission = True
             payment_entry_doc.save()

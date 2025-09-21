@@ -1,26 +1,62 @@
+/* global frappe, flt, get_currency_symbol */
 // Utility functions for RTL number formatting (standalone)
-const formatUtils = {
+export const formatUtils = {
 	// Check if current language/layout is RTL
 	isRtl() {
 		// Check via frappe utils first
-		if (typeof frappe !== 'undefined' && frappe.utils && typeof frappe.utils.is_rtl === 'function') {
+		if (typeof frappe !== "undefined" && frappe.utils && typeof frappe.utils.is_rtl === "function") {
 			return frappe.utils.is_rtl();
 		}
 		// Check HTML dir attribute
-		const htmlDir = document.documentElement.dir || document.body.dir || '';
-		if (htmlDir.toLowerCase() === 'rtl') return true;
+		const htmlDir = document.documentElement.dir || document.body.dir || "";
+		if (htmlDir.toLowerCase() === "rtl") return true;
 		// Check language
-		const docLang = document.documentElement.lang || '';
-		const rtlLanguages = ['ar', 'he', 'fa', 'ur', 'ps', 'sd', 'ku', 'dv'];
-		return rtlLanguages.some(lang => docLang.toLowerCase().startsWith(lang));
+		const docLang = document.documentElement.lang || "";
+		const rtlLanguages = ["ar", "he", "fa", "ur", "ps", "sd", "ku", "dv"];
+		return rtlLanguages.some((lang) => docLang.toLowerCase().startsWith(lang));
+	},
+
+	// Determine if user prefers Western numerals even in RTL
+	useWestern() {
+		try {
+			// Check a stored preference first
+			const stored = localStorage.getItem("use_western_numerals");
+			if (stored !== null) {
+				return ["1", "true", "yes"].includes(stored.toLowerCase());
+			}
+		} catch {
+			/* localStorage not available */
+		}
+		// Fallback to frappe boot settings if provided
+		if (typeof frappe !== "undefined") {
+			const bootVal =
+				frappe.boot?.use_western_numerals || frappe.boot?.pos_profile?.use_western_numerals;
+			if (typeof bootVal !== "undefined") {
+				return Boolean(bootVal);
+			}
+		}
+		return false;
+	},
+
+	// Helper to check if Arabic numerals should be used
+	shouldUseArabic() {
+		return this.isRtl() && !this.useWestern();
 	},
 
 	// Convert Western numerals to Arabic-Indic numerals
 	toArabicNumerals(str) {
-		if (!this.isRtl()) return str;
+		if (!this.shouldUseArabic()) return str;
 		const westernToArabic = {
-			'0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
-			'5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
+			0: "٠",
+			1: "١",
+			2: "٢",
+			3: "٣",
+			4: "٤",
+			5: "٥",
+			6: "٦",
+			7: "٧",
+			8: "٨",
+			9: "٩",
 		};
 		return String(str).replace(/[0-9]/g, (match) => westernToArabic[match]);
 	},
@@ -28,22 +64,33 @@ const formatUtils = {
 	// Convert Arabic-Indic numerals back to Western numerals for parsing
 	fromArabicNumerals(str) {
 		const arabicToWestern = {
-			'٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
-			'٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+			"٠": "0",
+			"١": "1",
+			"٢": "2",
+			"٣": "3",
+			"٤": "4",
+			"٥": "5",
+			"٦": "6",
+			"٧": "7",
+			"٨": "8",
+			"٩": "9",
 		};
-		return String(str).replace(/[٠-٩]/g, (match) => arabicToWestern[match]);
+		return String(str)
+			.replace(/[٠-٩]/g, (match) => arabicToWestern[match])
+			.replace(/٬/g, ",")
+			.replace(/٫/g, ".");
 	},
 
 	// Get appropriate locale for number formatting
 	getNumberLocale() {
-		if (this.isRtl()) {
-			const lang = document.documentElement.lang || 'ar';
-			if (lang.startsWith('ar')) return 'ar-SA'; // Arabic Saudi Arabia
-			if (lang.startsWith('fa')) return 'fa-IR'; // Persian Iran
-			return 'ar-SA'; // Default to Arabic
+		if (this.shouldUseArabic()) {
+			const lang = document.documentElement.lang || "ar";
+			if (lang.startsWith("ar")) return "ar-SA"; // Arabic Saudi Arabia
+			if (lang.startsWith("fa")) return "fa-IR"; // Persian Iran
+			return "ar-SA"; // Default to Arabic
 		}
-		return 'en-US';
-	}
+		return "en-US";
+	},
 };
 
 export default {
@@ -68,7 +115,7 @@ export default {
 			if (value === null || value === undefined) {
 				value = 0;
 			}
-			let number = Number(String(value).replace(/,/g, ""));
+			let number = Number(formatUtils.fromArabicNumerals(String(value)).replace(/,/g, ""));
 			if (isNaN(number)) number = 0;
 			let prec = precision != null ? Number(precision) : Number(this.currency_precision) || 2;
 			// Clamp precision to the valid range 0-20 to avoid RangeError
@@ -80,13 +127,11 @@ export default {
 			let formatted = number.toLocaleString(locale, {
 				minimumFractionDigits: prec,
 				maximumFractionDigits: prec,
-				useGrouping: true
+				useGrouping: true,
 			});
 
-			// For Arabic, convert to Arabic-Indic numerals
-			if (formatUtils.isRtl()) {
-				formatted = formatUtils.toArabicNumerals(formatted);
-			}
+			// Convert to Arabic-Indic numerals if needed
+			formatted = formatUtils.toArabicNumerals(formatted);
 
 			return formatted;
 		},
@@ -95,7 +140,7 @@ export default {
 			if (value === null || value === undefined) {
 				value = 0;
 			}
-			let number = Number(String(value).replace(/,/g, ""));
+			let number = Number(formatUtils.fromArabicNumerals(String(value)).replace(/,/g, ""));
 			if (isNaN(number)) number = 0;
 			let prec = precision != null ? Number(precision) : Number(this.float_precision) || 2;
 			// Clamp precision to the valid range 0-20 to avoid RangeError
@@ -107,13 +152,11 @@ export default {
 			let formatted = number.toLocaleString(locale, {
 				minimumFractionDigits: prec,
 				maximumFractionDigits: prec,
-				useGrouping: true
+				useGrouping: true,
 			});
 
-			// For Arabic, convert to Arabic-Indic numerals
-			if (formatUtils.isRtl()) {
-				formatted = formatUtils.toArabicNumerals(formatted);
-			}
+			// Convert to Arabic-Indic numerals if needed
+			formatted = formatUtils.toArabicNumerals(formatted);
 
 			return formatted;
 		},
@@ -174,7 +217,7 @@ export default {
 		// Check if a value is negative for CSS class binding
 		isNegative(value) {
 			if (value === null || value === undefined) return false;
-			const number = Number(String(value).replace(/,/g, ""));
+			const number = Number(formatUtils.fromArabicNumerals(String(value)).replace(/,/g, ""));
 			return !isNaN(number) && number < 0;
 		},
 
@@ -183,7 +226,7 @@ export default {
 			if (value === null || value === undefined) {
 				value = 0;
 			}
-			let number = Number(String(value).replace(/,/g, ""));
+			let number = Number(formatUtils.fromArabicNumerals(String(value)).replace(/,/g, ""));
 			if (isNaN(number)) number = 0;
 			let prec = precision != null ? Number(precision) : Number(this.currency_precision) || 2;
 			// Clamp precision to the valid range 0-20 to avoid RangeError
@@ -195,13 +238,11 @@ export default {
 			let formatted = number.toLocaleString(locale, {
 				minimumFractionDigits: prec,
 				maximumFractionDigits: prec,
-				useGrouping: true
+				useGrouping: true,
 			});
 
-			// For Arabic, convert to Arabic-Indic numerals
-			if (formatUtils.isRtl()) {
-				formatted = formatUtils.toArabicNumerals(formatted);
-			}
+			// Convert to Arabic-Indic numerals if needed
+			formatted = formatUtils.toArabicNumerals(formatted);
 
 			return formatted;
 		},
@@ -211,7 +252,7 @@ export default {
 			if (value === null || value === undefined) {
 				value = 0;
 			}
-			let number = Number(String(value).replace(/,/g, ""));
+			let number = Number(formatUtils.fromArabicNumerals(String(value)).replace(/,/g, ""));
 			if (isNaN(number)) number = 0;
 			let prec = precision != null ? Number(precision) : Number(this.float_precision) || 2;
 			// Clamp precision to the valid range 0-20 to avoid RangeError
@@ -223,13 +264,11 @@ export default {
 			let formatted = number.toLocaleString(locale, {
 				minimumFractionDigits: prec,
 				maximumFractionDigits: prec,
-				useGrouping: true
+				useGrouping: true,
 			});
 
-			// For Arabic, convert to Arabic-Indic numerals
-			if (formatUtils.isRtl()) {
-				formatted = formatUtils.toArabicNumerals(formatted);
-			}
+			// Convert to Arabic-Indic numerals if needed
+			formatted = formatUtils.toArabicNumerals(formatted);
 
 			return formatted;
 		},

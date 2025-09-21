@@ -3,11 +3,7 @@
 		<v-row v-show="!dialog">
 			<v-col md="8" cols="12" class="pb-2 pr-0">
 				<v-card
-					:class="[
-						'main mx-auto mt-3 p-3 pb-16 overflow-y-auto',
-						isDarkTheme ? '' : 'bg-grey-lighten-5',
-					]"
-					:style="isDarkTheme ? 'background-color:#1E1E1E' : ''"
+					class="main mx-auto mt-3 p-3 pb-16 overflow-y-auto pos-themed-card"
 					style="max-height: 94vh; height: 94vh"
 				>
 					<Customer></Customer>
@@ -42,8 +38,7 @@
 									variant="outlined"
 									hide-details
 									clearable
-									class="dark-field"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="pos-themed-input"
 									v-model="pos_profile_search"
 									:items="pos_profiles_list"
 									item-value="name"
@@ -177,9 +172,8 @@
 									variant="outlined"
 									color="primary"
 									:label="frappe._('Search by Name')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="pos-themed-input"
 									hide-details
-									class="dark-field"
 									v-model="mpesa_search_name"
 									clearable
 								></v-text-field>
@@ -190,9 +184,8 @@
 									variant="outlined"
 									color="primary"
 									:label="frappe._('Search by Mobile')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="pos-themed-input"
 									hide-details
-									class="dark-field"
 									v-model="mpesa_search_mobile"
 									clearable
 								></v-text-field>
@@ -231,8 +224,7 @@
 			</v-col>
 			<v-col md="4" cols="12" class="pb-3">
 				<v-card
-					:class="['invoices mx-auto mt-3 p-3', isDarkTheme ? '' : 'bg-grey-lighten-5']"
-					:style="isDarkTheme ? 'background-color:#1E1E1E' : ''"
+					class="invoices mx-auto mt-3 p-3 pos-themed-card"
 					style="max-height: 94vh; height: 94vh"
 				>
 					<strong>
@@ -243,10 +235,9 @@
 							</v-col>
 							<v-col md="5">
 								<v-text-field
-									class="p-0 m-0 dark-field"
+									class="p-0 m-0 pos-themed-input"
 									density="compact"
 									color="primary"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									hide-details
 									:model-value="formatCurrency(total_selected_invoices)"
 									readonly
@@ -265,10 +256,9 @@
 							>
 							<v-col md="5">
 								<v-text-field
-									class="p-0 m-0 dark-field"
+									class="p-0 m-0 pos-themed-input"
 									density="compact"
 									color="primary"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									hide-details
 									:model-value="formatCurrency(total_selected_payments)"
 									readonly
@@ -284,10 +274,9 @@
 							>
 							<v-col md="5">
 								<v-text-field
-									class="p-0 m-0 dark-field"
+									class="p-0 m-0 pos-themed-input"
 									density="compact"
 									color="primary"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									hide-details
 									:model-value="formatCurrency(total_selected_mpesa_payments)"
 									readonly
@@ -314,10 +303,9 @@
 											{{ currencySymbol(pos_profile.currency) }}
 										</div>
 										<v-text-field
-											class="p-0 m-0 dark-field"
+											class="p-0 m-0 pos-themed-input"
 											density="compact"
 											color="primary"
-											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											hide-details
 											v-model="method.amount"
 											type="number"
@@ -336,10 +324,9 @@
 							</v-col>
 							<v-col md="5">
 								<v-text-field
-									class="p-0 m-0 dark-field"
+									class="p-0 m-0 pos-themed-input"
 									density="compact"
 									color="primary"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									hide-details
 									:model-value="formatCurrency(total_of_diff)"
 									readonly
@@ -411,7 +398,7 @@ export default {
 		return {
 			isRtl,
 			rtlStyles,
-			rtlClasses
+			rtlClasses,
 		};
 	},
 	data: function () {
@@ -674,7 +661,8 @@ export default {
 			// When offline, attempt to load details from cached customers
 			if (isOffline()) {
 				try {
-					const cached = (getCustomerStorage() || []).find(
+					const list = await getCustomerStorage();
+					const cached = (list || []).find(
 						(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name,
 					);
 					if (cached) {
@@ -698,12 +686,12 @@ export default {
 			}
 
 			try {
-                                const r = await frappe.call({
-                                        method: "posawesome.posawesome.api.customers.get_customer_info",
-                                        args: {
-                                                customer: vm.customer_name,
-                                        },
-                                });
+				const r = await frappe.call({
+					method: "posawesome.posawesome.api.customers.get_customer_info",
+					args: {
+						customer: vm.customer_name,
+					},
+				});
 				const message = r.message;
 				if (!r.exc) {
 					vm.customer_info = {
@@ -1193,9 +1181,6 @@ export default {
 
 			return flt(invoiceTotal - paymentTotal);
 		},
-		isDarkTheme() {
-			return this.$theme.current === "dark";
-		},
 	},
 
 	created() {
@@ -1230,36 +1215,6 @@ export default {
 </script>
 
 <style>
-/* Dark mode input styling */
-:deep([data-theme="dark"]) .dark-field,
-:deep(.v-theme--dark) .dark-field,
-::v-deep([data-theme="dark"]) .dark-field,
-::v-deep(.v-theme--dark) .dark-field {
-	background-color: #1e1e1e !important;
-}
-
-:deep([data-theme="dark"]) .dark-field :deep(.v-field__input),
-:deep(.v-theme--dark) .dark-field :deep(.v-field__input),
-:deep([data-theme="dark"]) .dark-field :deep(input),
-:deep(.v-theme--dark) .dark-field :deep(input),
-:deep([data-theme="dark"]) .dark-field :deep(.v-label),
-:deep(.v-theme--dark) .dark-field :deep(.v-label),
-::v-deep([data-theme="dark"]) .dark-field .v-field__input,
-::v-deep(.v-theme--dark) .dark-field .v-field__input,
-::v-deep([data-theme="dark"]) .dark-field input,
-::v-deep(.v-theme--dark) .dark-field input,
-::v-deep([data-theme="dark"]) .dark-field .v-label,
-::v-deep(.v-theme--dark) .dark-field .v-label {
-	color: #fff !important;
-}
-
-:deep([data-theme="dark"]) .dark-field :deep(.v-field__overlay),
-:deep(.v-theme--dark) .dark-field :deep(.v-field__overlay),
-::v-deep([data-theme="dark"]) .dark-field .v-field__overlay,
-::v-deep(.v-theme--dark) .dark-field .v-field__overlay {
-	background-color: #1e1e1e !important;
-}
-
 input[total_of_diff] {
 	text-align: right;
 }

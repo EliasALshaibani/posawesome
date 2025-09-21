@@ -10,15 +10,10 @@
 			:style="{
 				height: invoiceHeight || 'var(--container-height)',
 				maxHeight: invoiceHeight || 'var(--container-height)',
-				backgroundColor: isDarkTheme ? '#121212' : '',
 				resize: 'vertical',
 				overflow: 'auto',
 			}"
-			:class="[
-				'cards my-0 py-0 mt-3 resizable',
-				isDarkTheme ? '' : 'bg-grey-lighten-5',
-				{ 'return-mode': isReturnInvoice },
-			]"
+			:class="['cards my-0 py-0 mt-3 resizable', 'pos-themed-card', { 'return-mode': isReturnInvoice }]"
 			@mouseup="saveInvoiceHeight"
 			@touchend="saveInvoiceHeight"
 		>
@@ -45,8 +40,7 @@
 							hide-details
 							variant="solo"
 							color="primary"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:items="invoiceTypes"
 							:label="frappe._('Type')"
 							v-model="invoiceType"
@@ -126,6 +120,18 @@
 				<div class="items-table-wrapper">
 					<!-- Column selector button moved outside the table -->
 					<div class="column-selector-container">
+						<v-text-field
+							v-model="itemSearch"
+							density="compact"
+							variant="solo"
+							color="primary"
+							class="item-search-field pos-themed-input"
+							:label="__('Search items or barcode')"
+							prepend-inner-icon="mdi-magnify"
+							hide-details
+							clearable
+							autocomplete="off"
+						></v-text-field>
 						<v-btn
 							density="compact"
 							variant="text"
@@ -217,62 +223,80 @@
 						:changePriceListRate="change_price_list_rate"
 						:isNegative="isNegative"
 						@update:expanded="handleExpandedUpdate"
-                                                @reorder-items="handleItemReorder"
-                                                @add-item-from-drag="handleItemDrop"
-                                                @show-drop-feedback="showDropFeedback"
-                                               @item-dropped="showDropFeedback(false)"
-                                               @view-packed="openPackedItems"
-                                       />
-                       <v-dialog v-model="show_packed_dialog" max-width="800px">
-                               <v-card>
-                                       <v-card-title class="d-flex align-center">
-                                               <span>{{ __("Packing List") }} ({{ packed_dialog_items.length }})</span>
-                                               <v-spacer></v-spacer>
-                                               <v-btn
-                                                       icon="mdi-close"
-                                                       variant="text"
-                                                       density="compact"
-                                                       @click="show_packed_dialog = false"
-                                               ></v-btn>
-                                       </v-card-title>
-                                       <v-divider></v-divider>
-                                       <v-card-text>
-                                               <v-alert type="warning" density="compact" class="mb-2">
-                                                       {{ __("For 'Product Bundle' items, Warehouse, Serial No and Batch No will be considered from the 'Packing List' table. If Warehouse and Batch No are same for all packing items for any 'Product Bundle' item, those values can be entered in the main Item table; values will be copied to 'Packing List' table.") }}
-                                               </v-alert>
-                                               <v-data-table
-                                                       :headers="packedItemsHeaders"
-                                                       :items="packed_dialog_items"
-                                                       class="elevation-1"
-                                                       hide-default-footer
-                                                       density="compact"
-                                               >
-                                                       <template v-slot:item.index="{ index }">
-                                                               {{ index + 1 }}
-                                                       </template>
-                                                       <template v-slot:item.qty="{ item }">
-                                                               {{ formatFloat(item.qty) }}
-                                                       </template>
-                                                       <template v-slot:item.rate="{ item }">
-                                                               <div class="currency-display">
-                                                                       <span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-                                                                       <span class="amount-value">{{ formatCurrency(item.rate) }}</span>
-                                                               </div>
-                                                       </template>
-                                                       <template v-slot:item.warehouse="{ item }">
-                                                               <v-text-field v-model="item.warehouse" hide-details density="compact" />
-                                                       </template>
-                                                       <template v-slot:item.batch_no="{ item }">
-                                                               <v-text-field v-model="item.batch_no" hide-details density="compact" />
-                                                       </template>
-                                                       <template v-slot:item.serial_no="{ item }">
-                                                               <v-text-field v-model="item.serial_no" hide-details density="compact" />
-                                                       </template>
-                                               </v-data-table>
-                                       </v-card-text>
-                               </v-card>
-                       </v-dialog>
-                                </div>
+						@reorder-items="handleItemReorder"
+						@add-item-from-drag="handleItemDrop"
+						@show-drop-feedback="showDropFeedback"
+						@item-dropped="showDropFeedback(false)"
+						@view-packed="openPackedItems"
+					/>
+					<v-dialog v-model="show_packed_dialog" max-width="800px">
+						<v-card>
+							<v-card-title class="d-flex align-center">
+								<span>{{ __("Packing List") }} ({{ packed_dialog_items.length }})</span>
+								<v-spacer></v-spacer>
+								<v-btn
+									icon="mdi-close"
+									variant="text"
+									density="compact"
+									@click="show_packed_dialog = false"
+								></v-btn>
+							</v-card-title>
+							<v-divider></v-divider>
+							<v-card-text>
+								<v-alert type="warning" density="compact" class="mb-2">
+									{{
+										__(
+											"For 'Product Bundle' items, Warehouse, Serial No and Batch No will be considered from the 'Packing List' table. If Warehouse and Batch No are same for all packing items for any 'Product Bundle' item, those values can be entered in the main Item table; values will be copied to 'Packing List' table.",
+										)
+									}}
+								</v-alert>
+								<v-data-table
+									:headers="packedItemsHeaders"
+									:items="packed_dialog_items"
+									class="elevation-1"
+									hide-default-footer
+									density="compact"
+								>
+									<template v-slot:item.index="{ index }">
+										{{ index + 1 }}
+									</template>
+									<template v-slot:item.qty="{ item }">
+										{{ formatFloat(item.qty) }}
+									</template>
+									<template v-slot:item.rate="{ item }">
+										<div class="currency-display">
+											<span class="currency-symbol">{{
+												currencySymbol(displayCurrency)
+											}}</span>
+											<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
+										</div>
+									</template>
+									<template v-slot:item.warehouse="{ item }">
+										<v-text-field
+											v-model="item.warehouse"
+											hide-details
+											density="compact"
+										/>
+									</template>
+									<template v-slot:item.batch_no="{ item }">
+										<v-text-field
+											v-model="item.batch_no"
+											hide-details
+											density="compact"
+										/>
+									</template>
+									<template v-slot:item.serial_no="{ item }">
+										<v-text-field
+											v-model="item.serial_no"
+											hide-details
+											density="compact"
+										/>
+									</template>
+								</v-data-table>
+							</v-card-text>
+						</v-card>
+					</v-dialog>
+				</div>
 			</div>
 		</v-card>
 		<!-- Payment Section -->
@@ -337,18 +361,20 @@ export default {
 			additional_discount: 0,
 			additional_discount_percentage: 0,
 			total_tax: 0,
-                       items: [], // List of invoice items
-                       packed_items: [], // Packed items for bundles
-                       packed_dialog_items: [], // Packed items displayed in dialog
-                       show_packed_dialog: false, // Packing list dialog visibility
+			items: [], // List of invoice items
+			packed_items: [], // Packed items for bundles
+			packed_dialog_items: [], // Packed items displayed in dialog
+			show_packed_dialog: false, // Packing list dialog visibility
 			posOffers: [], // All available offers
 			posa_offers: [], // Offers applied to this invoice
 			posa_coupons: [], // Coupons applied
+			isApplyingOffer: false, // Flag to prevent offer watcher loops
 			allItems: [], // All items for offer logic
 			discount_percentage_offer_name: null, // Track which offer is applied
-			invoiceTypes: ["Invoice", "Order"], // Types of invoices
+			invoiceTypes: ["Invoice", "Order", "Quotation"], // Types of invoices
 			invoiceType: "Invoice", // Current invoice type
 			itemsPerPage: 1000, // Items per page in table
+			itemSearch: "", // Search query for added items
 			expanded: [], // Array of expanded row IDs
 			singleExpand: true, // Only one row expanded at a time
 			cancel_dialog: false, // Cancel dialog visibility
@@ -356,24 +382,26 @@ export default {
 			currency_precision: 6, // Currency precision for display
 			new_line: false, // Add new line for item
 			available_stock_cache: {},
+			brand_cache: {},
 			delivery_charges: [], // List of delivery charges
+			base_delivery_charges_rate: 0, // Delivery charge in company currency
 			delivery_charges_rate: 0, // Selected delivery charge rate
 			selected_delivery_charge: "", // Selected delivery charge object
 			invoice_posting_date: false, // Posting date dialog
 			posting_date: frappe.datetime.nowdate(), // Invoice posting date
 			posting_date_display: "", // Display value for date picker
-                        items_headers: [],
-                        packedItemsHeaders: [
-                                { title: __("No."), key: "index" },
-                                { title: __("Parent Item"), key: "parent_item" },
-                                { title: __("Item Code"), key: "item_code" },
-                                { title: __("Description"), key: "item_name" },
-                                { title: __("Qty"), key: "qty" },
-                                { title: __("Rate"), key: "rate" },
-                                { title: __("Warehouse"), key: "warehouse" },
-                                { title: __("Batch"), key: "batch_no" },
-                                { title: __("Serial"), key: "serial_no" },
-                        ],
+			items_headers: [],
+			packedItemsHeaders: [
+				{ title: __("No."), key: "index" },
+				{ title: __("Parent Item"), key: "parent_item" },
+				{ title: __("Item Code"), key: "item_code" },
+				{ title: __("Description"), key: "item_name" },
+				{ title: __("Qty"), key: "qty" },
+				{ title: __("Rate"), key: "rate" },
+				{ title: __("Warehouse"), key: "warehouse" },
+				{ title: __("Batch"), key: "batch_no" },
+				{ title: __("Serial"), key: "serial_no" },
+			],
 			selected_currency: "", // Currently selected currency
 			exchange_rate: 1, // Current exchange rate
 			conversion_rate: 1, // Currency to company rate
@@ -402,9 +430,6 @@ export default {
 	},
 	computed: {
 		...invoiceComputed,
-		isDarkTheme() {
-			return this.$theme.current === "dark";
-		},
 	},
 
 	methods: {
@@ -415,13 +440,21 @@ export default {
 			// Define all available columns
 			this.available_columns = [
 				{ title: __("Name"), align: "start", sortable: true, key: "item_name", required: true },
-				{ title: __("QTY"), key: "qty", align: "start", required: true },
-				{ title: __("UOM"), key: "uom", align: "start", required: false },
-				{ title: __("Rate"), key: "rate", align: "start", required: true },
-				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
-				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
-				{ title: __("Amount"), key: "amount", align: "start", required: true },
+				{ title: __("QTY"), key: "qty", align: "center", required: true },
+				{ title: __("UOM"), key: "uom", align: "center", required: false },
+				{
+					title: __("Price List Rate"),
+					key: "price_list_rate",
+					align: "end",
+					required: false,
+					width: "120px",
+				},
+				{ title: __("Discount %"), key: "discount_value", align: "end", required: false },
+				{ title: __("Discount Amount"), key: "discount_amount", align: "end", required: false },
+				{ title: __("Rate"), key: "rate", align: "center", required: true },
+				{ title: __("Amount"), key: "amount", align: "center", required: true },
 				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
+				{ title: __("Actions"), key: "actions", align: "center", required: true, sortable: false },
 			];
 
 			// Initialize selected columns if empty
@@ -430,6 +463,7 @@ export default {
 				this.selected_columns = this.available_columns
 					.filter((col) => {
 						if (col.required) return true;
+						if (col.key === "price_list_rate") return true;
 						if (col.key === "discount_value" && this.pos_profile.posa_display_discount_percentage)
 							return true;
 						if (col.key === "discount_amount" && this.pos_profile.posa_display_discount_amount)
@@ -457,24 +491,22 @@ export default {
 		},
 
 		// Show visual feedback when item is being dragged over drop zone
-                showDropFeedback(isDragging) {
-                        // Add visual feedback class to the items table
-                        const itemsTable = this.$el.querySelector(".modern-items-table");
-                        if (itemsTable) {
-                                if (isDragging) {
-                                        itemsTable.classList.add("drag-over");
-                                } else {
-                                        itemsTable.classList.remove("drag-over");
-                                }
-                        }
-                },
-               openPackedItems(bundle_id) {
-                       this.packed_dialog_items = this.packed_items.filter(
-                               (it) => it.bundle_id === bundle_id,
-                       );
-                       this.show_packed_dialog = true;
-               },
-                toggleColumnSelection() {
+		showDropFeedback(isDragging) {
+			// Add visual feedback class to the items table
+			const itemsTable = this.$el.querySelector(".modern-items-table");
+			if (itemsTable) {
+				if (isDragging) {
+					itemsTable.classList.add("drag-over");
+				} else {
+					itemsTable.classList.remove("drag-over");
+				}
+			}
+		},
+		openPackedItems(bundle_id) {
+			this.packed_dialog_items = this.packed_items.filter((it) => it.bundle_id === bundle_id);
+			this.show_packed_dialog = true;
+		},
+		toggleColumnSelection() {
 			// Create a copy of selected columns for temporary editing
 			this.temp_selected_columns = [...this.selected_columns];
 			this.show_column_selector = true;
@@ -599,10 +631,12 @@ export default {
 			var vm = this;
 			if (!this.pos_profile || !this.customer || !this.pos_profile.posa_use_delivery_charges) {
 				this.delivery_charges = [];
+				this.base_delivery_charges_rate = 0;
 				this.delivery_charges_rate = 0;
 				this.selected_delivery_charge = "";
 				return;
 			}
+			this.base_delivery_charges_rate = 0;
 			this.delivery_charges_rate = 0;
 			this.selected_delivery_charge = "";
 			try {
@@ -631,7 +665,18 @@ export default {
 		},
 		update_delivery_charges() {
 			if (this.selected_delivery_charge) {
-				this.delivery_charges_rate = this.selected_delivery_charge.rate;
+				this.base_delivery_charges_rate = this.selected_delivery_charge.rate;
+			} else {
+				this.base_delivery_charges_rate = 0;
+			}
+			this.update_delivery_charges_rate();
+		},
+		update_delivery_charges_rate() {
+			if (this.base_delivery_charges_rate) {
+				this.delivery_charges_rate = this.flt(
+					this.base_delivery_charges_rate / (this.conversion_rate || 1),
+					this.currency_precision,
+				);
 			} else {
 				this.delivery_charges_rate = 0;
 			}
@@ -649,8 +694,7 @@ export default {
 			// Enforce available stock limits
 			if (item.max_qty !== undefined && this.flt(item[field_name]) > this.flt(item.max_qty)) {
 				const blockSale =
-					!this.stock_settings.allow_negative_stock ||
-					this.pos_profile.posa_block_sale_beyond_available_qty;
+					!this.stock_settings.allow_negative_stock || this.blockSaleBeyondAvailableQty;
 				if (blockSale) {
 					item[field_name] = item.max_qty;
 					parsedValue = item.max_qty;
@@ -675,15 +719,15 @@ export default {
 			}
 
 			// Recalculate stock quantity with the adjusted value
-                        this.calc_stock_qty(item, item[field_name]);
-                        if (field_name === "qty" && item.is_bundle) {
-                                this.packed_items
-                                        .filter((it) => it.bundle_id === item.bundle_id)
-                                        .forEach((ch) => {
-                                                ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
-                                                this.calc_stock_qty(ch, ch.qty);
-                                        });
-                        }
+			this.calc_stock_qty(item, item[field_name]);
+			if (field_name === "qty" && item.is_bundle) {
+				this.packed_items
+					.filter((it) => it.bundle_id === item.bundle_id)
+					.forEach((ch) => {
+						ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
+						this.calc_stock_qty(ch, ch.qty);
+					});
+			}
 			return parsedValue;
 		},
 		async fetch_available_currencies() {
@@ -1052,6 +1096,7 @@ export default {
 			});
 
 			this.update_item_rates();
+			this.update_delivery_charges_rate();
 		},
 
 		// Add new rounding function
@@ -1079,8 +1124,7 @@ export default {
 			} else {
 				const proposed = item.qty + 1;
 				const blockSale =
-					!this.stock_settings.allow_negative_stock ||
-					this.pos_profile.posa_block_sale_beyond_available_qty;
+					!this.stock_settings.allow_negative_stock || this.blockSaleBeyondAvailableQty;
 				if (blockSale && item.max_qty !== undefined && proposed > item.max_qty) {
 					item.qty = item.max_qty;
 					this.calc_stock_qty(item, item.qty);
@@ -1098,14 +1142,14 @@ export default {
 				this.remove_item(item);
 			}
 			this.calc_stock_qty(item, item.qty);
-                        if (item.is_bundle) {
-                                this.packed_items
-                                        .filter((it) => it.bundle_id === item.bundle_id)
-                                        .forEach((ch) => {
-                                                ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
-                                                this.calc_stock_qty(ch, ch.qty);
-                                        });
-                        }
+			if (item.is_bundle) {
+				this.packed_items
+					.filter((it) => it.bundle_id === item.bundle_id)
+					.forEach((ch) => {
+						ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
+						this.calc_stock_qty(ch, ch.qty);
+					});
+			}
 			this.$forceUpdate();
 		},
 
@@ -1121,14 +1165,14 @@ export default {
 				this.remove_item(item);
 			}
 			this.calc_stock_qty(item, item.qty);
-                        if (item.is_bundle) {
-                                this.packed_items
-                                        .filter((it) => it.bundle_id === item.bundle_id)
-                                        .forEach((ch) => {
-                                                ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
-                                                this.calc_stock_qty(ch, ch.qty);
-                                        });
-                        }
+			if (item.is_bundle) {
+				this.packed_items
+					.filter((it) => it.bundle_id === item.bundle_id)
+					.forEach((ch) => {
+						ch.qty = item.qty * (ch.child_qty_per_bundle || 1);
+						this.calc_stock_qty(ch, ch.qty);
+					});
+			}
 			this.$forceUpdate();
 		},
 
@@ -1222,6 +1266,7 @@ export default {
 		});
 		this.eventBus.on("clear_invoice", () => {
 			this.clear_invoice();
+			this.eventBus.emit("focus_item_search");
 		});
 		this.eventBus.on("load_invoice", (data) => {
 			this.load_invoice(data);
@@ -1264,15 +1309,8 @@ export default {
 			}
 			if (data.return_doc) {
 				console.log("Return against existing invoice:", data.return_doc.name);
-				// Ensure negative discount amounts
-				this.discount_amount =
-					data.return_doc.discount_amount > 0
-						? -Math.abs(data.return_doc.discount_amount)
-						: data.return_doc.discount_amount;
-				this.additional_discount_percentage =
-					data.return_doc.additional_discount_percentage > 0
-						? -Math.abs(data.return_doc.additional_discount_percentage)
-						: data.return_doc.additional_discount_percentage;
+				this.discount_amount = data.return_doc.discount_amount || 0;
+				this.additional_discount = data.return_doc.discount_amount || 0;
 				this.return_doc = data.return_doc;
 				// Set return_against reference
 				this.invoice_doc.return_against = data.return_doc.name;
@@ -1280,6 +1318,7 @@ export default {
 				console.log("Return without invoice reference");
 				// For return without invoice, reset discount values
 				this.discount_amount = 0;
+				this.additional_discount = 0;
 				this.additional_discount_percentage = 0;
 			}
 			console.log("Invoice state after loading return:", {
@@ -1417,6 +1456,18 @@ export default {
 	.dynamic-padding .v-col {
 		padding: 2px 4px;
 	}
+
+	.items-table-wrapper {
+		/* Adjust for smaller padding on tablets */
+		margin-left: calc(-1 * var(--dynamic-xs));
+		margin-right: calc(-1 * var(--dynamic-xs));
+		width: calc(100% + 2 * var(--dynamic-xs));
+		max-width: calc(100% + 2 * var(--dynamic-xs));
+	}
+
+	.item-search-field {
+		max-width: 100%;
+	}
 }
 
 @media (max-width: 480px) {
@@ -1431,23 +1482,40 @@ export default {
 	.dynamic-padding .v-col {
 		padding: 1px 2px;
 	}
+
+	.items-table-wrapper {
+		/* Adjust for smallest screens */
+		margin-left: calc(-1 * var(--dynamic-xs));
+		margin-right: calc(-1 * var(--dynamic-xs));
+		width: calc(100% + 2 * var(--dynamic-xs));
+		max-width: calc(100% + 2 * var(--dynamic-xs));
+	}
+
+	.item-search-field {
+		flex-basis: 100%;
+		max-width: 100%;
+		margin-right: 0;
+	}
 }
 
 .column-selector-container {
 	display: flex;
+	align-items: center;
 	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 8px;
 	padding: 8px 16px;
-	background-color: var(--surface-secondary);
+	background-color: var(--pos-card-bg);
 	border-radius: 8px 8px 0 0;
-	position: absolute;
-	top: 0;
-	right: 0;
-	transform: translateY(-100%);
+	box-sizing: border-box;
+	margin-bottom: 8px;
 }
 
-:deep([data-theme="dark"]) .column-selector-container,
-:deep(.v-theme--dark) .column-selector-container {
-	background-color: #1e1e1e;
+.item-search-field {
+	width: 100%;
+	max-width: 320px;
+	flex: 1 1 240px;
+	margin-right: auto;
 }
 
 .column-selector-btn {
@@ -1456,7 +1524,13 @@ export default {
 
 .items-table-wrapper {
 	position: relative;
-	margin-top: var(--dynamic-xl);
+	margin-top: var(--dynamic-sm);
+	/* Override parent padding to make table full-width */
+	margin-left: calc(-1 * var(--dynamic-sm));
+	margin-right: calc(-1 * var(--dynamic-sm));
+	width: calc(100% + 2 * var(--dynamic-sm));
+	max-width: calc(100% + 2 * var(--dynamic-sm));
+	box-sizing: border-box;
 }
 
 /* New styles for improved column switches */

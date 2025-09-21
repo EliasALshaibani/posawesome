@@ -11,16 +11,15 @@
 				<v-card-text class="pa-0">
 					<v-container>
 						<v-row class="mb-4">
-                                                        <v-text-field
-                                                                color="primary"
-                                                                :label="frappe._('Order ID')"
-                                                                :bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-                                                                hide-details
-                                                                v-model="order_name"
-                                                                density="compact"
-                                                                clearable
-                                                                class="mx-4"
-                                                        ></v-text-field>
+							<v-text-field
+								color="primary"
+								:label="frappe._('Order ID')"
+								hide-details
+								v-model="order_name"
+								density="compact"
+								clearable
+								class="mx-4 pos-themed-input"
+							></v-text-field>
 							<v-btn
 								variant="text"
 								class="ml-2"
@@ -71,11 +70,11 @@ import format from "../../format";
 export default {
 	// props: ["draftsDialog"],
 	mixins: [format],
-        data: () => ({
-                draftsDialog: false,
-                singleSelect: true,
-                pos_profile: {},
-                selected: [],
+	data: () => ({
+		draftsDialog: false,
+		singleSelect: true,
+		pos_profile: {},
+		selected: [],
 		dialog_data: {},
 		order_name: "",
 		headers: [
@@ -109,18 +108,14 @@ export default {
 				align: "end",
 				sortable: false,
 			},
-                ],
-        }),
-        computed: {
-                isDarkTheme() {
-                        return this.$theme.current === "dark";
-                },
-        },
-        watch: {},
-        methods: {
-                close_dialog() {
-                        this.draftsDialog = false;
-                },
+		],
+	}),
+	computed: {},
+	watch: {},
+	methods: {
+		close_dialog() {
+			this.draftsDialog = false;
+		},
 
 		clearSelected() {
 			this.selected = [];

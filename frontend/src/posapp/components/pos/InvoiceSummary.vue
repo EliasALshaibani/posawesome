@@ -1,7 +1,7 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-3 py-2 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
-		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
+		class="cards mb-0 mt-3 py-2 px-3 rounded-lg resizable pos-themed-card"
+		style="resize: vertical; overflow: auto"
 	>
 		<v-row dense>
 			<!-- Summary Info -->
@@ -232,9 +232,6 @@ export default {
 		"show-payment",
 	],
 	computed: {
-		isDarkTheme() {
-			return this.$theme?.current === "dark";
-		},
 		hide_qty_decimals() {
 			try {
 				const saved = localStorage.getItem("posawesome_item_selector_settings");
@@ -326,31 +323,16 @@ export default {
 
 <style scoped>
 .cards {
-	background-color: #f5f5f5 !important;
+	background-color: var(--pos-card-bg) !important;
 	transition: all 0.3s ease;
 }
 
-:deep([data-theme="dark"]) .cards,
-:deep([data-theme="dark"]) .cards .v-card__underlay,
-:deep(.v-theme--dark) .cards,
-:deep(.v-theme--dark) .cards .v-card__underlay,
-:deep(.cards.v-theme--dark),
-:deep(.cards.v-theme--dark) .v-card__underlay,
-::v-deep([data-theme="dark"]) .cards,
-::v-deep([data-theme="dark"]) .cards .v-card__underlay,
-::v-deep(.v-theme--dark) .cards,
-::v-deep(.v-theme--dark) .cards .v-card__underlay,
-::v-deep(.cards.v-theme--dark),
-::v-deep(.cards.v-theme--dark) .v-card__underlay {
-	background-color: #1e1e1e !important;
-}
-
 .white-text-btn {
-	color: white !important;
+	color: var(--pos-text-primary) !important;
 }
 
 .white-text-btn :deep(.v-btn__content) {
-	color: white !important;
+	color: var(--pos-text-primary) !important;
 }
 
 /* Enhanced button styling with better performance */

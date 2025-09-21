@@ -1,3 +1,5 @@
+/* global flt, __, get_currency_symbol */
+
 export default {
 	// Calculate total quantity of all items
 	total_qty() {
@@ -85,6 +87,12 @@ export default {
 	// Determine if current invoice is a return
 	isReturnInvoice() {
 		return this.invoiceType === "Return" || (this.invoice_doc && this.invoice_doc.is_return);
+	},
+	blockSaleBeyondAvailableQty() {
+		return (
+			!["Order", "Quotation"].includes(this.invoiceType) &&
+			this.pos_profile.posa_block_sale_beyond_available_qty
+		);
 	},
 	// Table headers for item table (for another table if needed)
 	itemTableHeaders() {

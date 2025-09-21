@@ -1,4 +1,5 @@
 import { clearPriceListCache } from "../../../offline/index.js";
+/* global frappe */
 
 export default {
 	// Watch for customer change and update related data
@@ -32,7 +33,16 @@ export default {
 	// Watch for items array changes (deep) and re-handle offers
 	items: {
 		deep: true,
-		handler(items) {
+		handler() {
+			if (this.isApplyingOffer) return;
+			this.handelOffers();
+			this.$forceUpdate();
+		},
+	},
+	packed_items: {
+		deep: true,
+		handler() {
+			if (this.isApplyingOffer) return;
 			this.handelOffers();
 			this.$forceUpdate();
 		},

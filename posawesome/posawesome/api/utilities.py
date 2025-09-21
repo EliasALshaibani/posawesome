@@ -12,7 +12,7 @@ import os
 import psutil
 import functools
 
-from .utils import get_item_groups
+from .utils import get_item_groups, get_active_pos_profile
 
 
 def get_version():
@@ -75,9 +75,7 @@ def get_item_group_condition(pos_profile, item_groups=None):
 
 def add_taxes_from_tax_template(item, parent_doc):
     accounts_settings = frappe.get_cached_doc("Accounts Settings")
-    add_taxes_from_item_tax_template = (
-        accounts_settings.add_taxes_from_item_tax_template
-    )
+    add_taxes_from_item_tax_template = accounts_settings.add_taxes_from_item_tax_template
     if item.get("item_tax_template") and add_taxes_from_item_tax_template:
         item_tax_template = item.get("item_tax_template")
         taxes_template_details = frappe.get_all(
@@ -113,9 +111,7 @@ def set_batch_nos_for_bundels(doc, warehouse_field, throw=False):
         warehouse = d.get(warehouse_field, None)
         if has_batch_no and warehouse and qty > 0:
             if not d.batch_no:
-                d.batch_no = get_batch_no(
-                    d.item_code, warehouse, qty, throw, d.serial_no
-                )
+                d.batch_no = get_batch_no(d.item_code, warehouse, qty, throw, d.serial_no)
             else:
                 batch_qty = get_batch_qty(batch_no=d.batch_no, warehouse=warehouse)
                 if flt(batch_qty, d.precision("qty")) < flt(qty, d.precision("qty")):
@@ -141,7 +137,6 @@ def get_selling_price_lists():
     )
 
 
-@frappe.whitelist()
 def get_app_info() -> Dict[str, List[Dict[str, str]]]:
     """
     Return a list of installed apps and their versions.
@@ -176,9 +171,18 @@ def get_sales_person_names():
 
     print("Fetching sales persons...")
     try:
+        profile = get_active_pos_profile()
+        allowed = []
+        if profile:
+            allowed = [
+                d.get("sales_person") for d in profile.get("posa_sales_persons", []) if d.get("sales_person")
+            ]
+        filters = {"enabled": 1}
+        if allowed:
+            filters["name"] = ["in", allowed]
         sales_persons = frappe.get_list(
             "Sales Person",
-            filters={"enabled": 1},
+            filters=filters,
             fields=["name", "sales_person_name"],
             limit_page_length=100000,
         )
@@ -186,9 +190,7 @@ def get_sales_person_names():
         return sales_persons
     except Exception as e:
         print(f"Error fetching sales persons: {str(e)}")
-        frappe.log_error(
-            f"Error fetching sales persons: {str(e)}", "POS Sales Person Error"
-        )
+        frappe.log_error(f"Error fetching sales persons: {str(e)}", "POS Sales Person Error")
         return []
 
 
@@ -217,9 +219,7 @@ def get_language_options():
 
     # Also include languages from the Translation doctype, if available
     if frappe.db.table_exists("Translation"):
-        rows = frappe.db.sql(
-            "SELECT DISTINCT language FROM `tabTranslation` WHERE language IS NOT NULL"
-        )
+        rows = frappe.db.sql("SELECT DISTINCT language FROM `tabTranslation` WHERE language IS NOT NULL")
         for (language,) in rows:
             languages.add(normalize(language))
 
@@ -288,18 +288,16 @@ def get_database_usage():
             db_name = frappe.conf.get("db_name") or frappe.db.get_database_name()
             db_size = frappe.db.sql("SELECT pg_database_size(%s)", (db_name,))[0][0]
             db_size = int(db_size)
-            db_connections = frappe.db.sql("SELECT count(*) FROM pg_stat_activity;")[0][
-                0
-            ]
+            db_connections = frappe.db.sql("SELECT count(*) FROM pg_stat_activity;")[0][0]
             db_slow_queries = frappe.db.sql(
                 "SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND now() - query_start > interval '1 second';"
             )[0][0]
             db_table_count = frappe.db.sql(
                 "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
             )[0][0]
-            db_total_rows = frappe.db.sql(
-                "SELECT sum(reltuples)::bigint FROM pg_class WHERE relkind='r';"
-            )[0][0]
+            db_total_rows = frappe.db.sql("SELECT sum(reltuples)::bigint FROM pg_class WHERE relkind='r';")[
+                0
+            ][0]
             db_top_tables = frappe.db.sql(
                 """
                 SELECT relname, pg_total_relation_size(relid) AS size
@@ -315,13 +313,9 @@ def get_database_usage():
                 (db_name,),
             )[0][0]
             db_size = int(db_size)
-            db_connections = frappe.db.sql(
-                "SHOW STATUS WHERE variable_name = 'Threads_connected';"
-            )[0][1]
+            db_connections = frappe.db.sql("SHOW STATUS WHERE variable_name = 'Threads_connected';")[0][1]
             db_connections = int(db_connections)
-            db_slow_queries = frappe.db.sql(
-                "SHOW GLOBAL STATUS WHERE variable_name = 'Slow_queries';"
-            )[0][1]
+            db_slow_queries = frappe.db.sql("SHOW GLOBAL STATUS WHERE variable_name = 'Slow_queries';")[0][1]
             db_slow_queries = int(db_slow_queries)
             db_table_count = frappe.db.sql(
                 "SELECT count(*) FROM information_schema.tables WHERE table_schema = %s",
@@ -410,6 +404,52 @@ _LANGUAGE_CACHE = {
     "cache_duration": 300,  # 5 minutes
 }
 
+
+def _set_active_session_language(lang_code: str) -> None:
+    """Ensure the current request session reflects the selected language."""
+
+    # Update thread-local language used by Frappe during the request
+    try:
+        frappe.local.lang = lang_code
+    except Exception:
+        pass
+
+    # Update session dictionaries so subsequent requests use the new language
+    for session_obj in (
+        getattr(frappe.local, "session", None),
+        getattr(frappe.session, "data", None),
+    ):
+        if not session_obj:
+            continue
+        try:
+            session_obj["lang"] = lang_code
+            session_obj["language"] = lang_code
+        except Exception:
+            pass
+
+    # Some code paths read frappe.session.lang directly
+    try:
+        frappe.session.lang = lang_code
+    except Exception:
+        pass
+
+    # Keep boot info in sync so the UI gets the updated language immediately
+    boot = getattr(frappe.local, "boot", None)
+    if boot:
+        boot.lang = lang_code
+        sysdefaults = boot.get("sysdefaults")
+        if isinstance(sysdefaults, dict):
+            sysdefaults["language"] = lang_code
+
+    # Update preferred language cookie when available
+    cookie_manager = getattr(frappe.local, "cookie_manager", None)
+    if cookie_manager:
+        try:
+            cookie_manager.set_cookie("preferred_language", lang_code)
+        except Exception:
+            pass
+
+
 # Language display names mapping (moved to module level for reuse)
 LANGUAGE_NAMES = {
     "en": "English",
@@ -488,9 +528,7 @@ def get_available_languages():
 
         # Always include English as fallback
         if not any(lang["code"] == "en" for lang in languages):
-            languages.insert(
-                0, {"code": "en", "name": "English", "native_name": "English"}
-            )
+            languages.insert(0, {"code": "en", "name": "English", "native_name": "English"})
 
         # Sort and cache
         languages = sorted(languages, key=lambda x: x["code"])
@@ -526,6 +564,7 @@ def get_current_user_language():
             }
 
         user_language = _get_user_language_cached(user)
+        _set_active_session_language(user_language)
         available_languages = get_available_languages()
 
         # Find current language details
@@ -538,9 +577,7 @@ def get_current_user_language():
             "success": True,
             "user": user,
             "language_code": user_language,
-            "language_name": (
-                current_lang["name"] if current_lang else user_language.upper()
-            ),
+            "language_name": (current_lang["name"] if current_lang else user_language.upper()),
             "available_languages": available_languages,
         }
 
@@ -577,6 +614,7 @@ def set_current_user_language(lang_code):
         # Clear specific caches
         frappe.clear_cache(user=user)
         _get_user_language_cached.cache_clear()
+        _set_active_session_language(lang_code)
 
         return {
             "success": True,
@@ -598,14 +636,10 @@ def get_language_info(lang_code):
             return {"success": False, "message": error_msg}
 
         available_languages = get_available_languages()
-        language = next(
-            (lang for lang in available_languages if lang["code"] == lang_code), None
-        )
+        language = next((lang for lang in available_languages if lang["code"] == lang_code), None)
 
         # Check translation file
-        translations_path = frappe.get_app_path(
-            "posawesome", "translations", f"{lang_code}.csv"
-        )
+        translations_path = frappe.get_app_path("posawesome", "translations", f"{lang_code}.csv")
         has_translations = os.path.exists(translations_path)
 
         translation_count = 0

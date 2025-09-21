@@ -1,15 +1,15 @@
 <template>
 	<v-menu :min-width="240" :close-on-content-click="true" location="bottom end" :offset="[0, 4]">
 		<template #activator="{ props }">
-			<v-btn v-bind="props" color="primary" variant="elevated" class="menu-btn-compact">
+			<v-btn v-bind="props" variant="elevated" class="menu-btn-compact pos-themed-button">
 				{{ __("Menu") }}
-				<v-icon end size="16" class="ml-1">mdi-menu-down</v-icon>
+				<v-icon end size="16" class="ml-1 pos-text-primary">mdi-menu-down</v-icon>
 			</v-btn>
 		</template>
-		<v-card class="menu-card-compact" elevation="12">
+		<v-card class="menu-card-compact pos-themed-card" elevation="12">
 			<div class="menu-header-compact">
-				<v-icon color="primary" size="20">mdi-menu</v-icon>
-				<span class="menu-header-text-compact">{{ __("Actions") }}</span>
+				<v-icon class="pos-text-primary" size="20">mdi-menu</v-icon>
+				<span class="menu-header-text-compact pos-text-primary">{{ __("Actions") }}</span>
 			</div>
 			<v-list density="compact" class="menu-list-compact">
 				<v-list-item
@@ -149,13 +149,13 @@
 					<template v-slot:prepend>
 						<div class="menu-icon-wrapper-compact info-icon">
 							<v-icon color="white" size="16">{{
-								isDark ? "mdi-white-balance-sunny" : "mdi-moon-waning-crescent"
+								$theme.isDark ? "mdi-white-balance-sunny" : "mdi-moon-waning-crescent"
 							}}</v-icon>
 						</div>
 					</template>
 					<div class="menu-content-compact">
 						<v-list-item-title class="menu-item-title-compact">{{
-							isDark ? __("Light Mode") : __("Dark Mode")
+							$theme.isDark ? __("Light Mode") : __("Dark Mode")
 						}}</v-list-item-title>
 						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
 							__("Switch theme appearance")
@@ -210,7 +210,11 @@
 						<v-list-item v-bind="props">
 							<template #prepend>
 								<v-icon :color="item.raw.code === currentLanguage ? 'primary' : 'grey'">
-									{{ item.raw.code === currentLanguage ? 'mdi-check-circle' : 'mdi-circle-outline' }}
+									{{
+										item.raw.code === currentLanguage
+											? "mdi-check-circle"
+											: "mdi-circle-outline"
+									}}
 								</v-icon>
 							</template>
 							<v-list-item-title>
@@ -223,6 +227,16 @@
 					</template>
 				</v-select>
 
+				<v-switch
+					v-model="useWesternNumerals"
+					class="mt-3 western-numerals-switch"
+					density="compact"
+					inset
+					:color="useWesternNumerals ? 'success' : 'error'"
+					:label="__('Use Western numerals')"
+					@update:modelValue="saveWesternPreference"
+				></v-switch>
+
 				<v-alert
 					v-if="selectedLanguage !== currentLanguage"
 					type="info"
@@ -230,19 +244,14 @@
 					density="compact"
 					class="mt-3"
 				>
-					{{ __("Language will be changed to") }}: 
+					{{ __("Language will be changed to") }}:
 					<strong>{{ selectedLanguageName }}</strong>
 				</v-alert>
 			</v-card-text>
 
 			<v-card-actions class="pa-4 pt-0">
 				<v-spacer />
-				<v-btn
-					color="grey"
-					variant="text"
-					@click="closeLanguageDialog"
-					:disabled="changing"
-				>
+				<v-btn color="grey" variant="text" @click="closeLanguageDialog" :disabled="changing">
 					{{ __("Cancel") }}
 				</v-btn>
 				<v-btn
@@ -274,6 +283,7 @@
 </template>
 
 <script>
+/* global frappe */
 const FALLBACK_LANGUAGES = [
 	{ code: "en", name: "English", native_name: "English" },
 	{ code: "ar", name: "العربية", native_name: "العربية" },
@@ -289,7 +299,6 @@ export default {
 		manualOffline: Boolean,
 		networkOnline: Boolean,
 		serverOnline: Boolean,
-		isDark: Boolean,
 	},
 	data() {
 		return {
@@ -299,6 +308,8 @@ export default {
 			availableLanguages: FALLBACK_LANGUAGES,
 			loading: false,
 			changing: false,
+			useWesternNumerals: false,
+			originalWesternNumerals: false,
 			notification: {
 				show: false,
 				message: "",
@@ -309,44 +320,93 @@ export default {
 	},
 	computed: {
 		canChangeLanguage() {
-			return this.selectedLanguage !== this.currentLanguage && !this.changing;
+			return (
+				(this.selectedLanguage !== this.currentLanguage ||
+					this.useWesternNumerals !== this.originalWesternNumerals) &&
+				!this.changing
+			);
 		},
 		selectedLanguageName() {
-			const lang = this.availableLanguages.find(l => l.code === this.selectedLanguage);
+			const lang = this.availableLanguages.find((l) => l.code === this.selectedLanguage);
 			return lang?.name || this.selectedLanguage.toUpperCase();
 		},
 	},
 	async mounted() {
 		await this.initializeLanguage();
+		this.initializeWesternNumerals();
 	},
 	methods: {
+		initializeWesternNumerals() {
+			try {
+				const stored = localStorage.getItem("use_western_numerals");
+				if (stored !== null) {
+					this.useWesternNumerals = ["1", "true", "yes"].includes(stored.toLowerCase());
+				} else if (window.frappe && window.frappe.boot) {
+					const bootVal =
+						window.frappe.boot.use_western_numerals ||
+						window.frappe.boot.pos_profile?.use_western_numerals;
+					if (typeof bootVal !== "undefined") {
+						this.useWesternNumerals = Boolean(bootVal);
+					}
+				}
+			} catch {
+				this.useWesternNumerals = false;
+			}
+			this.originalWesternNumerals = this.useWesternNumerals;
+
+			// Force reactivity update
+			this.$nextTick(() => {
+				this.$forceUpdate();
+			});
+		},
+
+		saveWesternPreference() {
+			try {
+				localStorage.setItem("use_western_numerals", this.useWesternNumerals ? "1" : "0");
+			} catch {
+				/* ignore */
+			}
+			if (window.frappe && window.frappe.boot) {
+				window.frappe.boot.use_western_numerals = this.useWesternNumerals;
+			}
+			this.showNotification(
+				this.useWesternNumerals ? "Western numerals enabled" : "Western numerals disabled",
+			);
+		},
+
 		async changeLanguage() {
-			if (!this.canChangeLanguage) {
-				this.showNotification("Cannot change language - same language selected", "warning");
+			if (this.selectedLanguage === this.currentLanguage) {
+				this.originalWesternNumerals = this.useWesternNumerals;
+				this.showNotification("Settings updated. Reloading...", "success");
+				this.closeLanguageDialog();
+				this.$emit("clear-cache");
+				setTimeout(() => {
+					window.location.reload();
+				}, 200);
 				return;
 			}
 
 			this.changing = true;
 			try {
 				const response = await frappe.call({
-					method: 'posawesome.posawesome.api.utilities.set_current_user_language',
-					args: { lang_code: this.selectedLanguage }
+					method: "posawesome.posawesome.api.utilities.set_current_user_language",
+					args: { lang_code: this.selectedLanguage },
 				});
 
 				const result = response?.message || response;
-				
+
 				if (result?.success) {
 					this.currentLanguage = this.selectedLanguage;
-					
+
 					if (window.frappe && window.frappe.boot) {
 						window.frappe.boot.lang = this.selectedLanguage;
 					}
-					
+
 					this.showNotification("Language changed successfully! Reloading...", "success");
 					this.closeLanguageDialog();
-					
-					this.$emit('clear-cache');
-					
+
+					this.$emit("clear-cache");
+
 					setTimeout(() => {
 						window.location.reload();
 					}, 2000);
@@ -355,7 +415,10 @@ export default {
 					this.showNotification(errorMsg, "error");
 				}
 			} catch (error) {
-				this.showNotification(`Failed to change language: ${error.message || 'Unknown error'}`, "error");
+				this.showNotification(
+					`Failed to change language: ${error.message || "Unknown error"}`,
+					"error",
+				);
 			} finally {
 				this.changing = false;
 			}
@@ -365,11 +428,11 @@ export default {
 			this.loading = true;
 			try {
 				const response = await frappe.call({
-					method: 'posawesome.posawesome.api.utilities.get_current_user_language'
+					method: "posawesome.posawesome.api.utilities.get_current_user_language",
 				});
-				
+
 				const result = response?.message || response;
-				
+
 				if (result?.success) {
 					Object.assign(this, {
 						availableLanguages: result.available_languages,
@@ -387,6 +450,7 @@ export default {
 		closeLanguageDialog() {
 			this.showLanguageDialog = false;
 			this.selectedLanguage = this.currentLanguage;
+			this.originalWesternNumerals = this.useWesternNumerals;
 		},
 
 		showNotification(message, type = "info", timeout = 3000) {
@@ -408,7 +472,7 @@ export default {
 	},
 	emits: [
 		"close-shift",
-		"print-last-invoice", 
+		"print-last-invoice",
 		"sync-invoices",
 		"toggle-offline",
 		"clear-cache",
@@ -420,59 +484,84 @@ export default {
 </script>
 
 <style scoped>
-/* Compact Menu Button - Better Navbar Integration */
+/* Elite Menu Button - Refined Navbar Integration */
 .menu-btn-compact {
 	margin-left: 8px;
 	margin-right: 4px;
 	padding: 6px 16px;
 	border-radius: 20px;
-	font-weight: 600;
+	font-weight: 500;
 	text-transform: none;
 	font-size: 13px;
-	letter-spacing: 0.3px;
-	box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	letter-spacing: 0.5px;
+	box-shadow: none;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	background: rgba(25, 118, 210, 0.08) !important;
+	border: 1px solid rgba(25, 118, 210, 0.12);
+	backdrop-filter: blur(8px);
 	min-width: 90px;
 	height: 36px;
+	color: #1976d2 !important;
+}
+
+/* Elite menu button text and icon colors */
+.menu-btn-compact .v-btn__content {
+	color: #1976d2 !important;
+	font-weight: 500;
+}
+
+.menu-btn-compact .pos-text-primary,
+.menu-btn-compact .v-icon {
+	color: #1976d2 !important;
+	transition: color 0.25s ease;
 }
 
 .menu-btn-compact:hover {
-	transform: translateY(-1px) scale(1.02);
-	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
-	background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+	background: rgba(25, 118, 210, 0.12) !important;
+	border-color: rgba(25, 118, 210, 0.2);
 }
 
-/* Compact Menu Card - Smaller and Better Positioned */
+.menu-btn-compact:hover .v-btn__content,
+.menu-btn-compact:hover .pos-text-primary,
+.menu-btn-compact:hover .v-icon {
+	color: #1565c0 !important;
+}
+
+/* Elite Menu Card - Glass Morphism Design */
 .menu-card-compact {
-	border-radius: 16px;
+	border-radius: 20px;
 	overflow: hidden;
-	background: #ffffff;
-	border: none;
+	background: rgba(255, 255, 255, 0.9);
+	border: 1px solid rgba(255, 255, 255, 0.2);
 	box-shadow:
-		0 8px 24px rgba(0, 0, 0, 0.12),
-		0 2px 6px rgba(0, 0, 0, 0.08);
-	backdrop-filter: blur(8px);
+		0 20px 40px rgba(0, 0, 0, 0.08),
+		0 8px 16px rgba(0, 0, 0, 0.04),
+		0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+	backdrop-filter: blur(20px) saturate(1.2);
 	min-width: 260px;
 	max-width: 280px;
 	margin-top: 2px;
 }
 
-/* Compact Menu Header */
+/* Elite Menu Header */
 .menu-header-compact {
-	padding: 12px 16px 10px;
-	background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+	padding: 16px 20px 12px;
+	background: rgba(248, 249, 250, 0.6);
+	backdrop-filter: blur(8px);
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	border-bottom: 1px solid rgba(25, 118, 210, 0.06);
+	border-bottom: 1px solid rgba(25, 118, 210, 0.08);
 }
 
 .menu-header-text-compact {
 	font-size: 14px;
-	font-weight: 600;
+	font-weight: 500;
 	color: #1976d2;
-	letter-spacing: 0.3px;
+	letter-spacing: 0.5px;
+	opacity: 0.9;
 }
 
 /* Compact Menu List */
@@ -584,7 +673,7 @@ export default {
 
 .menu-item-subtitle-compact {
 	font-size: 11px;
-	color: #666666;
+	color: var(--pos-text-secondary, #666666);
 	line-height: 1.3;
 	font-weight: 400;
 }
@@ -718,56 +807,48 @@ export default {
 }
 
 /* Dark Theme Adjustments */
-:deep([data-theme="dark"]) .menu-btn-compact,
-:deep(.v-theme--dark) .menu-btn-compact {
+/* Theme-aware compact menu styling */
+.menu-btn-compact {
 	background: linear-gradient(135deg, #90caf9 0%, #42a5f5 100%);
-	color: #1e1e1e !important;
+	color: var(--pos-text-primary) !important;
 }
 
-:deep([data-theme="dark"]) .menu-btn-compact:hover,
-:deep(.v-theme--dark) .menu-btn-compact:hover {
+.menu-btn-compact:hover {
 	background: linear-gradient(135deg, #64b5f6 0%, #1976d2 100%);
 	box-shadow: 0 4px 12px rgba(144, 202, 249, 0.3);
 }
 
-:deep([data-theme="dark"]) .menu-card-compact,
-:deep(.v-theme--dark) .menu-card-compact {
-	background: var(--surface-primary, #1e1e1e) !important;
-	border: 1px solid rgba(255, 255, 255, 0.12);
+.menu-card-compact {
+	background: var(--pos-card-bg) !important;
+	border: 1px solid var(--pos-border);
 	box-shadow:
-		0 8px 24px rgba(0, 0, 0, 0.4),
-		0 2px 6px rgba(0, 0, 0, 0.2);
+		0 8px 24px var(--pos-shadow-dark),
+		0 2px 6px var(--pos-shadow);
 }
 
-:deep([data-theme="dark"]) .menu-header-compact,
-:deep(.v-theme--dark) .menu-header-compact {
-	background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+.menu-header-compact {
+	background: var(--pos-navbar-bg) !important;
+	border-bottom: 1px solid var(--pos-border);
 }
 
-:deep([data-theme="dark"]) .menu-header-text-compact,
-:deep(.v-theme--dark) .menu-header-text-compact {
-	color: var(--primary-light, #90caf9) !important;
+.menu-header-text-compact {
+	color: var(--pos-primary) !important;
 }
 
-:deep([data-theme="dark"]) .menu-list-compact,
-:deep(.v-theme--dark) .menu-list-compact {
-	background: var(--surface-primary, #1e1e1e) !important;
+.menu-list-compact {
+	background: var(--pos-card-bg) !important;
 }
 
-:deep([data-theme="dark"]) .menu-item-title-compact,
-:deep(.v-theme--dark) .menu-item-title-compact {
-	color: var(--text-primary, #ffffff) !important;
+.menu-item-title-compact {
+	color: var(--pos-text-primary) !important;
 }
 
-:deep([data-theme="dark"]) .menu-item-subtitle-compact,
-:deep(.v-theme--dark) .menu-item-subtitle-compact {
-	color: var(--text-secondary, #b0b0b0) !important;
+.menu-item-subtitle-compact {
+	color: var(--pos-text-secondary) !important;
 }
 
-:deep([data-theme="dark"]) .menu-section-divider-compact,
-:deep(.v-theme--dark) .menu-section-divider-compact {
-	border-color: rgba(255, 255, 255, 0.12) !important;
+.menu-section-divider-compact {
+	border-color: var(--pos-border) !important;
 }
 
 :deep([data-theme="dark"]) .menu-item-compact:hover::before,
@@ -814,5 +895,52 @@ export default {
 :deep(.v-theme--dark) .warning-icon {
 	background: linear-gradient(135deg, #ffb74d 0%, #ffc107 100%);
 	box-shadow: 0 2px 6px rgba(255, 183, 77, 0.3);
+}
+
+/* Western Numerals Switch Custom Colors */
+.western-numerals-switch :deep(.v-switch__track) {
+	background-color: #f44336 !important;
+	opacity: 1 !important;
+}
+
+.western-numerals-switch :deep(.v-switch--inset .v-switch__track) {
+	background-color: #f44336 !important;
+	opacity: 1 !important;
+}
+
+.western-numerals-switch :deep(.v-switch__thumb) {
+	background-color: white !important;
+}
+
+.western-numerals-switch.v-input--is-focused :deep(.v-switch__track),
+.western-numerals-switch:hover :deep(.v-switch__track) {
+	background-color: #d32f2f !important;
+}
+
+/* Active state - Green */
+.western-numerals-switch :deep(.v-selection-control--dirty .v-switch__track) {
+	background-color: #4caf50 !important;
+	opacity: 1 !important;
+}
+
+.western-numerals-switch :deep(.v-selection-control--dirty .v-switch--inset .v-switch__track) {
+	background-color: #4caf50 !important;
+	opacity: 1 !important;
+}
+
+.western-numerals-switch.v-input--is-focused :deep(.v-selection-control--dirty .v-switch__track),
+.western-numerals-switch:hover :deep(.v-selection-control--dirty .v-switch__track) {
+	background-color: #388e3c !important;
+}
+
+/* Dark theme adjustments for the switch */
+:deep([data-theme="dark"]) .western-numerals-switch .v-switch__track,
+:deep(.v-theme--dark) .western-numerals-switch .v-switch__track {
+	background-color: #f44336 !important;
+}
+
+:deep([data-theme="dark"]) .western-numerals-switch .v-selection-control--dirty .v-switch__track,
+:deep(.v-theme--dark) .western-numerals-switch .v-selection-control--dirty .v-switch__track {
+	background-color: #4caf50 !important;
 }
 </style>

@@ -7,26 +7,24 @@
 				</v-card-title>
 				<v-container>
 					<v-row class="mb-4">
-                                                <v-text-field
-                                                        color="primary"
-                                                        :label="frappe._('Full Name')"
-                                                        :bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-                                                        hide-details
-                                                        v-model="full_name"
-                                                        density="compact"
-                                                        clearable
-                                                        class="mx-4"
-                                                ></v-text-field>
-                                                <v-text-field
-                                                        color="primary"
-                                                        :label="frappe._('Mobile No')"
-                                                        :bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-                                                        hide-details
-                                                        v-model="mobile_no"
-                                                        density="compact"
-                                                        clearable
-                                                        class="mx-4"
-                                                ></v-text-field>
+						<v-text-field
+							color="primary"
+							:label="frappe._('Full Name')"
+							class="pos-themed-input mx-4"
+							hide-details
+							v-model="full_name"
+							density="compact"
+							clearable
+						></v-text-field>
+						<v-text-field
+							color="primary"
+							:label="frappe._('Mobile No')"
+							class="pos-themed-input mx-4"
+							hide-details
+							v-model="mobile_no"
+							density="compact"
+							clearable
+						></v-text-field>
 						<v-btn variant="text" class="ml-2" color="primary" theme="dark" @click="search">{{
 							__("Search")
 						}}</v-btn>
@@ -68,7 +66,7 @@
 <script>
 /* global __, frappe */
 export default {
-        data: () => ({
+	data: () => ({
 		dialog: false,
 		singleSelect: true,
 		selected: [],
@@ -103,18 +101,14 @@ export default {
 				sortable: true,
 				value: "posting_date",
 			},
-                ],
-        }),
-        computed: {
-                isDarkTheme() {
-                        return this.$theme.current === "dark";
-                },
-        },
-        watch: {},
-        methods: {
-                close_dialog() {
-                        this.dialog = false;
-                },
+		],
+	}),
+	computed: {},
+	watch: {},
+	methods: {
+		close_dialog() {
+			this.dialog = false;
+		},
 		search_by_enter(e) {
 			if (e.keyCode === 13) {
 				this.search();

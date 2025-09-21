@@ -40,10 +40,10 @@ export const memory = {
 	// Track the current cache schema version
 	cache_version: CACHE_VERSION,
 	cache_ready: false,
-        tax_inclusive: false,
-        manual_offline: false,
-        print_template: "",
-        terms_and_conditions: "",
+	tax_inclusive: false,
+	manual_offline: false,
+	print_template: "",
+	terms_and_conditions: "",
 };
 
 // Initialize memory from IndexedDB and expose a promise for consumers
@@ -130,26 +130,26 @@ export function reduceCacheUsage() {
 // --- Generic getters and setters for cached data ----------------------------
 
 export async function getStoredItems() {
-        try {
-                await checkDbHealth();
-                if (!db.isOpen()) await db.open();
-                const items = await db.table("items").toArray();
-               return items;
-        } catch (e) {
-                console.error("Failed to get stored items", e);
-                return [];
-        }
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		const items = await db.table("items").toArray();
+		return items;
+	} catch (e) {
+		console.error("Failed to get stored items", e);
+		return [];
+	}
 }
 
 export async function getStoredItemsCount() {
-        try {
-                await checkDbHealth();
-                if (!db.isOpen()) await db.open();
-                return await db.table("items").count();
-        } catch (e) {
-                console.error("Failed to count stored items", e);
-                return 0;
-        }
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		return await db.table("items").count();
+	} catch (e) {
+		console.error("Failed to count stored items", e);
+		return 0;
+	}
 }
 
 export async function saveItems(items) {
@@ -179,13 +179,22 @@ export async function clearStoredItems() {
 	}
 }
 
-export function getCustomerStorage() {
-	return memory.customer_storage || [];
+export async function getCustomerStorage(limit = Infinity, offset = 0) {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		return await db.table("customers").offset(offset).limit(limit).toArray();
+	} catch (e) {
+		console.error("Failed to get customers from storage", e);
+		return [];
+	}
 }
 
-export function setCustomerStorage(customers) {
+export async function setCustomerStorage(customers) {
 	try {
-		memory.customer_storage = customers.map((c) => ({
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		const clean = customers.map((c) => ({
 			name: c.name,
 			customer_name: c.customer_name,
 			mobile_no: c.mobile_no,
@@ -193,11 +202,37 @@ export function setCustomerStorage(customers) {
 			primary_address: c.primary_address,
 			tax_id: c.tax_id,
 		}));
+		const CHUNK_SIZE = 1000;
+		await db.transaction("rw", db.table("customers"), async () => {
+			for (let i = 0; i < clean.length; i += CHUNK_SIZE) {
+				const chunk = clean.slice(i, i + CHUNK_SIZE);
+				await db.table("customers").bulkPut(chunk);
+			}
+		});
 	} catch (e) {
-		console.error("Failed to trim customers for storage", e);
-		memory.customer_storage = [];
+		console.error("Failed to set customer storage", e);
 	}
-	persist("customer_storage", memory.customer_storage);
+}
+
+export async function getCustomerStorageCount() {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		return await db.table("customers").count();
+	} catch (e) {
+		console.error("Failed to count customers", e);
+		return 0;
+	}
+}
+
+export async function clearCustomerStorage() {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		await db.table("customers").clear();
+	} catch (e) {
+		console.error("Failed to clear customer storage", e);
+	}
 }
 
 export function getItemsLastSync() {
@@ -316,39 +351,39 @@ export function setTaxTemplate(name, doc) {
 }
 
 export function getPrintTemplate() {
-        try {
-                return memory.print_template || "";
-        } catch (e) {
-                console.error("Failed to get print template", e);
-                return "";
-        }
+	try {
+		return memory.print_template || "";
+	} catch (e) {
+		console.error("Failed to get print template", e);
+		return "";
+	}
 }
 
 export function setPrintTemplate(template) {
-        try {
-                memory.print_template = template || "";
-                persist("print_template", memory.print_template);
-        } catch (e) {
-                console.error("Failed to set print template", e);
-        }
+	try {
+		memory.print_template = template || "";
+		persist("print_template", memory.print_template);
+	} catch (e) {
+		console.error("Failed to set print template", e);
+	}
 }
 
 export function getTermsAndConditions() {
-        try {
-                return memory.terms_and_conditions || "";
-        } catch (e) {
-                console.error("Failed to get terms and conditions", e);
-                return "";
-        }
+	try {
+		return memory.terms_and_conditions || "";
+	} catch (e) {
+		console.error("Failed to get terms and conditions", e);
+		return "";
+	}
 }
 
 export function setTermsAndConditions(terms) {
-        try {
-                memory.terms_and_conditions = terms || "";
-                persist("terms_and_conditions", memory.terms_and_conditions);
-        } catch (e) {
-                console.error("Failed to set terms and conditions", e);
-        }
+	try {
+		memory.terms_and_conditions = terms || "";
+		persist("terms_and_conditions", memory.terms_and_conditions);
+	} catch (e) {
+		console.error("Failed to set terms and conditions", e);
+	}
 }
 
 export function getTranslationsCache(lang) {

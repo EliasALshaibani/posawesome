@@ -1,17 +1,40 @@
 <template>
 	<div :style="responsiveStyles">
+		<v-dialog v-model="scanErrorDialog" persistent max-width="420" content-class="scan-error-dialog">
+			<v-card>
+				<v-card-title class="d-flex align-center text-error text-h6">
+					<v-icon color="error" class="mr-2">mdi-alert-octagon</v-icon>
+					{{ __("Scan Error") }}
+				</v-card-title>
+				<v-divider></v-divider>
+				<v-card-text>
+					<p class="scan-error-message">{{ scanErrorMessage }}</p>
+					<p v-if="scanErrorCode" class="scan-error-code mt-2 mb-0">
+						<strong>{{ __("Scanned Code:") }}</strong>
+						<span>{{ scanErrorCode }}</span>
+					</p>
+					<p v-if="scanErrorDetails" class="scan-error-details mt-4 mb-0">
+						{{ scanErrorDetails }}
+					</p>
+				</v-card-text>
+				<v-card-actions class="justify-end">
+					<v-btn color="primary" variant="tonal" autofocus @click="acknowledgeScanError">
+						{{ __("OK") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 		<v-card
 			:class="[
-				'selection mx-auto my-0 py-0 mt-3 pos-card dynamic-card resizable',
-				isDarkTheme ? '' : 'bg-grey-lighten-5',
+				'selection mx-auto my-0 py-0 mt-3 pos-card dynamic-card resizable pos-themed-card',
 				rtlClasses,
 			]"
 			:style="{
 				height: responsiveStyles['--container-height'],
 				maxHeight: responsiveStyles['--container-height'],
-				backgroundColor: isDarkTheme ? '#121212' : '',
 				resize: 'vertical',
 				overflow: 'auto',
+				position: 'relative',
 			}"
 		>
 			<v-progress-linear
@@ -51,8 +74,13 @@
 										size="small"
 										color="primary"
 										variant="text"
+										:disabled="scannerLocked"
 										@click="startCameraScanning"
-										:title="__('Scan with Camera')"
+										:title="
+											scannerLocked
+												? __('Acknowledge the error to resume scanning')
+												: __('Scan with Camera')
+										"
 									>
 									</v-btn>
 								</template>
@@ -162,10 +190,9 @@
 												density="compact"
 												variant="outlined"
 												color="primary"
-												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 												hide-details
 												:label="__('Items per page')"
-												class="mb-2 dark-field"
+												class="mb-2 pos-themed-input"
 											>
 											</v-text-field>
 										</v-card-text>
@@ -187,7 +214,11 @@
 				<v-row class="items">
 					<v-col cols="12" class="pt-0 mt-0">
 						<div v-if="items_view == 'card'" class="items-card-container">
+							<div v-if="loading" class="items-card-grid">
+								<Skeleton v-for="n in 8" :key="n" class="mb-4" height="120" />
+							</div>
 							<div
+								v-else
 								class="items-card-grid"
 								ref="itemsContainer"
 								@scroll.passive="onCardScroll"
@@ -197,7 +228,7 @@
 									v-for="item in filtered_items"
 									:key="item.item_code"
 									class="card-item-card"
-									@click="add_item(item)"
+									@click="select_item($event, item)"
 									:draggable="true"
 									@dragstart="onDragStart($event, item)"
 									@dragend="onDragEnd"
@@ -237,11 +268,13 @@
 													<span class="price-amount">
 														{{
 															format_currency(
-																item.base_price_list_rate || item.rate,
+																item.base_price_list_rate ?? item.rate ?? 0,
 																item.original_currency ||
 																	pos_profile.currency,
 																ratePrecision(
-																	item.base_price_list_rate || item.rate,
+																	item.base_price_list_rate ??
+																		item.rate ??
+																		0,
 																),
 															)
 														}}
@@ -314,9 +347,11 @@
 											}}
 											{{
 												format_currency(
-													item.base_price_list_rate || item.rate,
+													item.base_price_list_rate ?? item.rate ?? 0,
 													item.original_currency || pos_profile.currency,
-													ratePrecision(item.base_price_list_rate || item.rate),
+													ratePrecision(
+														item.base_price_list_rate ?? item.rate ?? 0,
+													),
 												)
 											}}
 										</div>
@@ -454,20 +489,25 @@ import {
 } from "../../../offline/index.js";
 import { useResponsive } from "../../composables/useResponsive.js";
 import { useRtl } from "../../composables/useRtl.js";
+import { useFlyAnimation } from "../../composables/useFlyAnimation.js";
 import placeholderImage from "./placeholder-image.png";
+import Skeleton from "../ui/Skeleton.vue";
 
 export default {
 	mixins: [format],
 	setup() {
 		const responsive = useResponsive();
 		const rtl = useRtl();
-		return { ...responsive, ...rtl };
+		const { fly } = useFlyAnimation();
+		return { ...responsive, ...rtl, fly };
 	},
 	components: {
 		CameraScanner,
+		Skeleton,
 	},
 	data: () => ({
 		pos_profile: {},
+		stock_settings: {},
 		flags: {},
 		items_view: "list",
 		item_group: "ALL",
@@ -497,6 +537,7 @@ export default {
 		exchange_rate: 1,
 		prePopulateInProgress: false,
 		itemWorker: null,
+		flyConfig: { speed: 0.6, easing: "ease-in-out" },
 		storageAvailable: true,
 		localStorageAvailable: true,
 		items_request_token: 0,
@@ -531,6 +572,19 @@ export default {
 		search_from_scanner: false,
 		currentPage: 0,
 		isOverflowing: false,
+		// Track background loading state and pending searches
+		isBackgroundLoading: false,
+		pendingItemSearch: null,
+		loadProgress: 0,
+		totalItemCount: 0,
+		scanErrorDialog: false,
+		scanErrorMessage: "",
+		scanErrorDetails: "",
+		scanErrorCode: "",
+		scannerLocked: false,
+		scanAudioContext: null,
+		pendingScanCode: "",
+		awaitingScanResult: false,
 	}),
 
 	watch: {
@@ -625,8 +679,13 @@ export default {
 					this.items.forEach((it) => {
 						const ci = map[it.item_code];
 						if (ci) {
-							it.rate = ci.rate;
-							it.price_list_rate = ci.price_list_rate || ci.rate;
+							const force =
+								this.pos_profile?.posa_force_price_from_customer_price_list !== false;
+							const price = ci.price_list_rate ?? ci.rate ?? 0;
+							if (force || price) {
+								it.rate = price;
+								it.price_list_rate = price;
+							}
 						}
 					});
 					this.eventBus.emit("set_all_items", this.items);
@@ -890,6 +949,7 @@ export default {
 			return dbHealthy;
 		},
 		async loadVisibleItems(reset = false) {
+			this.loadProgress = 0;
 			this.eventBus.emit("data-load-progress", { name: "items", progress: 0 });
 			await initPromise;
 			await this.ensureStorageHealth();
@@ -908,9 +968,11 @@ export default {
 			const total = pageItems.length || 1;
 			pageItems.forEach((it, idx) => {
 				this.items.push(it);
+				const progress = Math.round(((idx + 1) / total) * 100);
+				this.loadProgress = progress;
 				this.eventBus.emit("data-load-progress", {
 					name: "items",
-					progress: Math.round(((idx + 1) / total) * 100),
+					progress,
 				});
 			});
 			this.eventBus.emit("set_all_items", this.items);
@@ -1044,9 +1106,11 @@ export default {
 						saveItemUOMs(item.item_code, det.item_uoms);
 					}
 					if (det.rate !== undefined) {
-						if (det.rate !== 0 || !item.rate) {
-							upd.rate = det.rate;
-							upd.price_list_rate = det.price_list_rate || det.rate;
+						const force = vm.pos_profile?.posa_force_price_from_customer_price_list !== false;
+						const price = det.price_list_rate ?? det.rate ?? 0;
+						if (force || price) {
+							upd.rate = price;
+							upd.price_list_rate = price;
 						}
 					}
 					if (det.currency) {
@@ -1078,9 +1142,11 @@ export default {
 							saveItemUOMs(item.item_code, updItem.item_uoms);
 						}
 						if (updItem.rate !== undefined) {
-							if (updItem.rate !== 0 || !item.rate) {
-								upd.rate = updItem.rate;
-								upd.price_list_rate = updItem.price_list_rate || updItem.rate;
+							const force = vm.pos_profile?.posa_force_price_from_customer_price_list !== false;
+							const price = updItem.price_list_rate ?? updItem.rate ?? 0;
+							if (force || price) {
+								upd.rate = price;
+								upd.price_list_rate = price;
 							}
 						}
 						if (updItem.currency) {
@@ -1129,6 +1195,19 @@ export default {
 		show_coupons() {
 			this.eventBus.emit("show_coupons", "true");
 		},
+		async initializeItems() {
+			await this.ensureStorageHealth();
+			if (this.pos_profile && this.pos_profile.posa_local_storage && this.storageAvailable) {
+				const localCount = await getStoredItemsCount();
+				if (localCount > 0) {
+					await this.loadVisibleItems(true);
+					this.items_loaded = true;
+					await this.verifyServerItemCount();
+					return;
+				}
+			}
+			await this.get_items(true);
+		},
 		async forceReloadItems() {
 			console.log("[ItemsSelector] forceReloadItems called");
 			// Clear cached price list items so the reload always
@@ -1169,15 +1248,32 @@ export default {
 				});
 				const serverCount = res.message || 0;
 				console.log("[ItemsSelector] server item count result", { serverCount });
-				if (typeof serverCount === "number" && serverCount !== localCount) {
-					console.log("[ItemsSelector] count mismatch, forcing reload");
-					await this.forceReloadItems();
+				if (typeof serverCount === "number") {
+					this.totalItemCount = serverCount;
+					this.loadProgress = serverCount ? Math.round((localCount / serverCount) * 100) : 0;
+					if (serverCount > localCount) {
+						const lastSync = getItemsLastSync();
+						const requestToken = ++this.items_request_token;
+						await this.backgroundLoadItems(null, lastSync, false, requestToken, localCount);
+					} else if (serverCount < localCount) {
+						console.log("[ItemsSelector] local cache has extra items, forcing reload");
+						await this.forceReloadItems();
+					}
 				}
 			} catch (err) {
 				console.error("Error checking item count:", err);
 			}
 		},
 		async get_items(force_server = false) {
+			if (this.isBackgroundLoading) {
+				if (this.pendingGetItems) {
+					this.pendingGetItems.force_server = this.pendingGetItems.force_server || force_server;
+				} else {
+					this.pendingGetItems = { force_server };
+				}
+				return;
+			}
+
 			console.log("[ItemsSelector] get_items called", {
 				force_server,
 				first_search: this.first_search,
@@ -1225,8 +1321,24 @@ export default {
 			this.loading = true;
 			const requestToken = ++this.items_request_token;
 			console.log("[ItemsSelector] sending request", { requestToken });
+			this.loadProgress = 0;
 			this.eventBus.emit("data-load-progress", { name: "items", progress: 0 });
 			console.log("[ItemsSelector] data-load-progress emitted", { progress: 0 });
+
+			// Fetch total item count to calculate real-time progress
+			try {
+				const countRes = await frappe.call({
+					method: "posawesome.posawesome.api.items.get_items_count",
+					args: {
+						pos_profile: JSON.stringify(vm.pos_profile),
+						item_groups: profileGroups,
+					},
+				});
+				this.totalItemCount = countRes.message || 0;
+			} catch (e) {
+				console.error("Failed to fetch item count", e);
+				this.totalItemCount = 0;
+			}
 
 			try {
 				// Simple API call to get items
@@ -1269,11 +1381,11 @@ export default {
 				console.log("[ItemsSelector] set_all_items emitted", { itemsLength: vm.items.length });
 
 				const hasMore = !vm.pos_profile.pose_use_limit_search && items.length === vm.itemsPageLimit;
-				const progress = hasMore
-					? Math.min(99, Math.round((items.length / (items.length + vm.itemsPageLimit)) * 100))
+				vm.loadProgress = vm.totalItemCount
+					? Math.round((items.length / vm.totalItemCount) * 100)
 					: 100;
-				vm.eventBus.emit("data-load-progress", { name: "items", progress });
-				console.log("[ItemsSelector] data-load-progress emitted", { progress });
+				vm.eventBus.emit("data-load-progress", { name: "items", progress: vm.loadProgress });
+				console.log("[ItemsSelector] data-load-progress emitted", { progress: vm.loadProgress });
 
 				if (
 					vm.pos_profile &&
@@ -1286,13 +1398,15 @@ export default {
 							console.log("[ItemsSelector] clearing local items before save");
 							await clearStoredItems();
 						}
-						await saveItemsBulk(vm.items);
-						console.log("[ItemsSelector] items persisted locally", { length: vm.items.length });
+						await saveItemsBulk(items);
+						console.log("[ItemsSelector] items persisted locally", { length: items.length });
 					} catch (e) {
 						console.error("Failed to persist items locally", e);
 						vm.markStorageUnavailable();
 					}
 				}
+
+				await savePriceListItems(vm.customer_price_list || vm.pos_profile.selling_price_list, items);
 
 				if (hasMore) {
 					const last = items[items.length - 1]?.item_name || null;
@@ -1310,7 +1424,27 @@ export default {
 				console.log("[ItemsSelector] get_items finished");
 			}
 		},
+		finishBackgroundLoad() {
+			this.isBackgroundLoading = false;
+
+			const pendingSearch = this.pendingItemSearch;
+			this.pendingItemSearch = null;
+			if (pendingSearch) {
+				this.search_onchange(pendingSearch);
+				if (this.search_onchange.flush) {
+					this.search_onchange.flush();
+				}
+				return;
+			}
+
+			if (this.pendingGetItems) {
+				const { force_server: forceServer } = this.pendingGetItems;
+				this.pendingGetItems = null;
+				this.get_items(!!forceServer);
+			}
+		},
 		async backgroundLoadItems(startAfter, syncSince, clearBefore = false, requestToken, loaded = 0) {
+			this.isBackgroundLoading = true;
 			console.log("[ItemsSelector] backgroundLoadItems called", {
 				startAfter,
 				syncSince,
@@ -1324,10 +1458,16 @@ export default {
 			// "no incremental loading" and exit early.
 			if (!limit || limit >= 10000) {
 				console.log("[ItemsSelector] background load skipped due to high limit", { limit });
+				if (loaded === 0) {
+					this.finishBackgroundLoad();
+				}
 				return;
 			}
 			if (this.items_request_token !== requestToken) {
 				console.log("[ItemsSelector] background load token mismatch, aborting");
+				if (loaded === 0) {
+					this.finishBackgroundLoad();
+				}
 				return;
 			}
 			const lastSync = syncSince;
@@ -1355,6 +1495,9 @@ export default {
 					const text = JSON.stringify(res);
 					if (this.items_request_token !== requestToken) {
 						console.log("[ItemsSelector] background load token mismatch after response");
+						if (loaded === 0) {
+							this.finishBackgroundLoad();
+						}
 						return;
 					}
 					let lastItemName = null;
@@ -1364,6 +1507,9 @@ export default {
 								console.log(
 									"[ItemsSelector] background load token mismatch during worker message",
 								);
+								if (loaded === 0) {
+									this.finishBackgroundLoad();
+								}
 								resolve(0);
 								return;
 							}
@@ -1408,15 +1554,21 @@ export default {
 						this.itemWorker.postMessage({
 							type: "parse_and_cache",
 							json: text,
-							priceList: this.customer_price_list || "",
+							priceList: this.active_price_list || "",
 						});
 					});
 					if (this.items_request_token !== requestToken) {
 						console.log("[ItemsSelector] background load token mismatch after worker");
+						if (loaded === 0) {
+							this.finishBackgroundLoad();
+						}
 						return;
 					}
 					const newLoaded = loaded + count;
-					const progress = Math.min(99, Math.round((newLoaded / (newLoaded + limit)) * 100));
+					const progress = this.totalItemCount
+						? Math.min(99, Math.round((newLoaded / this.totalItemCount) * 100))
+						: Math.min(99, Math.round((newLoaded / (newLoaded + limit)) * 100));
+					this.loadProgress = progress;
 					this.eventBus.emit("data-load-progress", { name: "items", progress });
 					console.log("[ItemsSelector] background load progress", { progress });
 					if (count === limit) {
@@ -1438,9 +1590,11 @@ export default {
 						if (this.items && this.items.length > 0) {
 							await this.prePopulateStockCache(this.items);
 						}
+						this.loadProgress = 100;
 						this.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
 						console.log("[ItemsSelector] background load completed");
 						this.items_loaded = true;
+						this.finishBackgroundLoad();
 					}
 				} catch (err) {
 					console.error("Failed to background load items", err);
@@ -1465,6 +1619,9 @@ export default {
 					callback: async (r) => {
 						if (this.items_request_token !== requestToken) {
 							console.log("[ItemsSelector] background load token mismatch in callback");
+							if (loaded === 0) {
+								this.finishBackgroundLoad();
+							}
 							return;
 						}
 						const rows = r.message || [];
@@ -1499,7 +1656,10 @@ export default {
 							}
 						}
 						const newLoaded = loaded + rows.length;
-						const progress = Math.min(99, Math.round((newLoaded / (newLoaded + limit)) * 100));
+						const progress = this.totalItemCount
+							? Math.min(99, Math.round((newLoaded / this.totalItemCount) * 100))
+							: Math.min(99, Math.round((newLoaded / (newLoaded + limit)) * 100));
+						this.loadProgress = progress;
 						this.eventBus.emit("data-load-progress", { name: "items", progress });
 						console.log("[ItemsSelector] background load progress", { progress });
 						if (rows.length === limit) {
@@ -1518,9 +1678,11 @@ export default {
 							if (this.items && this.items.length > 0) {
 								await this.prePopulateStockCache(this.items);
 							}
+							this.loadProgress = 100;
 							this.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
 							console.log("[ItemsSelector] background load completed");
 							this.items_loaded = true;
+							this.finishBackgroundLoad();
 						}
 					},
 					error: (err) => {
@@ -1591,7 +1753,31 @@ export default {
 
 			return items_headers;
 		},
+		select_item(event, item) {
+			const targets = document.querySelectorAll(".items-table-container");
+			const target = targets[targets.length - 1];
+			const source = event.currentTarget?.querySelector?.(".card-item-image") || event.currentTarget;
+			if (target && source && this.fly) {
+				this.fly(source, target, this.flyConfig);
+			}
+			this.add_item(item);
+		},
 		async click_item_row(event, { item }) {
+			const targets = document.querySelectorAll(".items-table-container");
+			const target = targets[targets.length - 1];
+			if (target && this.fly) {
+				const placeholder = document.createElement("div");
+				placeholder.style.width = "40px";
+				placeholder.style.height = "40px";
+				placeholder.style.background = "#ccc";
+				placeholder.style.borderRadius = "50%";
+				placeholder.style.position = "fixed";
+				placeholder.style.top = `${event.clientY - 20}px`;
+				placeholder.style.left = `${event.clientX - 20}px`;
+				document.body.appendChild(placeholder);
+				this.fly(placeholder, target, this.flyConfig);
+				placeholder.remove();
+			}
 			await this.add_item(item);
 		},
 		async add_item(item) {
@@ -1661,7 +1847,8 @@ export default {
 					item.base_price_list_rate = base_rate;
 				}
 
-				if (!item.qty || item.qty === 1) {
+				const hasBarcodeQty = item._barcode_qty;
+				if (!item.qty || (item.qty === 1 && !hasBarcodeQty)) {
 					let qtyVal = this.qty != null ? this.qty : 1;
 					qtyVal = Math.abs(qtyVal);
 					if (this.hide_qty_decimals) {
@@ -1669,40 +1856,139 @@ export default {
 					}
 					item.qty = qtyVal;
 				}
-				this.eventBus.emit("add_item", item);
+				const payload = { ...item };
+				delete payload._barcode_qty;
+				this.eventBus.emit("add_item", payload);
 				this.qty = 1;
 			}
 		},
 		async enter_event() {
-			let match = false;
 			if (!this.filtered_items.length || !this.first_search) {
 				return;
 			}
-			const qty = this.get_item_qty(this.first_search);
+
+			// Derive the searchable code and detect scale barcode
+			const search = this.get_search(this.first_search);
+			const isScaleBarcode =
+				this.pos_profile?.posa_scale_barcode_start &&
+				this.first_search.startsWith(this.pos_profile.posa_scale_barcode_start);
+			this.search = search;
+
+			const qty = parseFloat(this.get_item_qty(this.first_search));
 			const new_item = { ...this.filtered_items[0] };
 			new_item.qty = flt(qty);
+			if (isScaleBarcode) {
+				new_item._barcode_qty = true;
+			}
+
+			let match = false;
 			if (Array.isArray(new_item.item_barcode)) {
 				new_item.item_barcode.forEach((element) => {
-					if (this.search == element.barcode) {
+					if (search === element.barcode) {
 						new_item.uom = element.posa_uom;
 						match = true;
 					}
 				});
 			}
+			if (!match && new_item.barcode === search) {
+				match = true;
+			}
+			if (!match && Array.isArray(new_item.barcodes)) {
+				match = new_item.barcodes.some((bc) => String(bc) === search);
+			}
+
 			if (this.flags.serial_no) {
 				new_item.to_set_serial_no = this.flags.serial_no;
 			}
 			if (this.flags.batch_no) {
 				new_item.to_set_batch_no = this.flags.batch_no;
 			}
+
 			if (match) {
-				await this.add_item(new_item);
+				const fromScanner = this.search_from_scanner;
+				const scannedCodeForDisplay = this.pendingScanCode || this.first_search || search;
+				const availableQty =
+					typeof new_item.available_qty === "number"
+						? new_item.available_qty
+						: typeof new_item.actual_qty === "number"
+							? new_item.actual_qty
+							: null;
+				const requestedQty = Math.abs(new_item.qty || 1);
+
+				if (availableQty !== null && availableQty < requestedQty) {
+					const negativeStockEnabled = this.isNegativeStockEnabled();
+					const shouldBlock =
+						!negativeStockEnabled &&
+						(this.pos_profile?.posa_block_sale_beyond_available_qty || availableQty <= 0);
+
+					if (shouldBlock || negativeStockEnabled) {
+						const formattedAvailable = this.format_number
+							? this.format_number(
+									availableQty,
+									this.hide_qty_decimals ? 0 : this.float_precision,
+								)
+							: availableQty;
+						const formattedRequested = this.format_number
+							? this.format_number(
+									requestedQty,
+									this.hide_qty_decimals ? 0 : this.float_precision,
+								)
+							: requestedQty;
+
+						if (shouldBlock) {
+							this.showScanError({
+								message: this.__("Quantity not available for {0}", [
+									new_item.item_name || scannedCodeForDisplay,
+								]),
+								code: scannedCodeForDisplay,
+								details: this.__("Available: {0}. Requested: {1}.", [
+									formattedAvailable,
+									formattedRequested,
+								]),
+							});
+							return;
+						}
+
+						this.eventBus.emit("show_message", {
+							title: this.__(
+								"Available stock {0} is less than requested {1}. Negative stock setting allows continuing.",
+								[formattedAvailable, formattedRequested],
+							),
+							color: "warning",
+						});
+					}
+				}
+
+				if (fromScanner) {
+					this.awaitingScanResult = true;
+				}
+
+				try {
+					await this.add_item(new_item);
+					if (fromScanner) {
+						this.playScanTone("success");
+						this.scannerLocked = false;
+						this.pendingScanCode = "";
+					}
+				} finally {
+					if (fromScanner) {
+						this.awaitingScanResult = false;
+					}
+				}
+
 				this.flags.serial_no = null;
 				this.flags.batch_no = null;
 				this.qty = 1;
-				// Clear search field after successfully adding an item
-				this.clearSearch();
-				this.$refs.debounce_search.focus();
+
+				if (fromScanner) {
+					this.search_from_scanner = false;
+				}
+
+				if (!this.scanErrorDialog) {
+					// Clear search field after successfully adding an item
+					this.clearSearch();
+					this.$refs.debounce_search.focus();
+				}
 			}
 		},
 		search_onchange: _.debounce(async function (newSearchTerm) {
@@ -1712,14 +1998,21 @@ export default {
 
 			// Determine the actual query string and trim whitespace
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
-
-			vm.search = (query || "").trim();
+			const trimmedQuery = (query || "").trim();
 
 			// Require a minimum of three characters before running a search
-			if (!vm.search || vm.search.length < 3) {
+			if (!trimmedQuery || trimmedQuery.length < 3) {
 				vm.search_from_scanner = false;
 				return;
 			}
+
+			// If background loading is in progress, defer the search without changing the active query
+			if (vm.isBackgroundLoading) {
+				vm.pendingItemSearch = trimmedQuery;
+				return;
+			}
+
+			vm.search = trimmedQuery;
 
 			const fromScanner = vm.search_from_scanner;
 
@@ -1737,11 +2030,12 @@ export default {
 					vm.get_items(true);
 				}
 			} else {
-				// Save the current filtered items before search to maintain quantity data
-				const current_items = [...vm.filtered_items];
+				// When local storage is disabled, always fetch items
+				// from the server so searches aren't limited to the
+				// initially loaded set.
+				await vm.get_items(true);
 				vm.enter_event();
 
-				// After search, update quantities for newly filtered items
 				if (vm.filtered_items && vm.filtered_items.length > 0) {
 					setTimeout(() => {
 						vm.update_items_details(vm.filtered_items);
@@ -1759,8 +2053,13 @@ export default {
 		get_item_qty(first_search) {
 			const qtyVal = this.qty != null ? this.qty : 1;
 			let scal_qty = Math.abs(qtyVal);
+			const prefix_len = this.pos_profile.posa_scale_barcode_start?.length || 0;
+
 			if (first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-				let pesokg1 = first_search.substr(7, 5);
+				// Determine item code length dynamically based on EAN-13 structure:
+				// prefix + item_code + 5 qty digits + 1 check digit
+				const item_code_len = first_search.length - prefix_len - 6;
+				let pesokg1 = first_search.substr(prefix_len + item_code_len, 5);
 				let pesokg;
 				if (pesokg1.startsWith("0000")) {
 					pesokg = "0.00" + pesokg1.substr(4);
@@ -1782,9 +2081,13 @@ export default {
 		},
 		get_search(first_search) {
 			if (!first_search) return "";
-			return first_search.startsWith(this.pos_profile.posa_scale_barcode_start)
-				? first_search.substr(0, 7)
-				: first_search;
+			const prefix_len = this.pos_profile.posa_scale_barcode_start?.length || 0;
+			if (!first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+				return first_search;
+			}
+			// Calculate item code length from total barcode length
+			const item_code_len = first_search.length - prefix_len - 6;
+			return first_search.substr(0, prefix_len + item_code_len);
 		},
 		esc_event() {
 			this.search = null;
@@ -1822,9 +2125,11 @@ export default {
 						saveItemUOMs(item.item_code, det.item_uoms);
 					}
 					if (det.rate !== undefined) {
-						if (det.rate !== 0 || !item.rate) {
-							item.rate = det.rate;
-							item.price_list_rate = det.price_list_rate || det.rate;
+						const force = vm.pos_profile?.posa_force_price_from_customer_price_list !== false;
+						const price = det.price_list_rate ?? det.rate ?? 0;
+						if (force || price) {
+							item.rate = price;
+							item.price_list_rate = price;
 						}
 					}
 					if (det.currency) {
@@ -2070,9 +2375,11 @@ export default {
 						return onScan.decodeKeyEvent(oEvent);
 					},
 					onScan: function (sCode) {
-						setTimeout(() => {
-							vm.trigger_onscan(sCode);
-						}, 300);
+						if (vm.scannerLocked) {
+							vm.playScanTone("error");
+							return;
+						}
+						vm.trigger_onscan(sCode);
 					},
 				});
 
@@ -2083,11 +2390,16 @@ export default {
 			}
 		},
 		trigger_onscan(sCode) {
+			if (this.scannerLocked) {
+				this.playScanTone("error");
+				return;
+			}
 			// indicate this search came from a scanner
 			this.search_from_scanner = true;
 			// apply scanned code as search term
 			this.first_search = sCode;
 			this.search = sCode;
+			this.pendingScanCode = sCode;
 
 			this.$nextTick(() => {
 				if (this.filtered_items.length == 0) {
@@ -2095,14 +2407,20 @@ export default {
 						title: `No Item has this barcode "${sCode}"`,
 						color: "error",
 					});
-					frappe.utils.play_sound("error");
+					this.showScanError({
+						message: `${this.__("Item not found")}: ${sCode}`,
+						code: sCode,
+						details: this.__("Please verify the barcode or search manually."),
+					});
 				} else {
 					this.enter_event();
 				}
 
 				// clear search field for next scan and refocus input
-				this.clearSearch();
-				this.$refs.debounce_search && this.$refs.debounce_search.focus();
+				if (!this.scanErrorDialog) {
+					this.clearSearch();
+					this.$refs.debounce_search && this.$refs.debounce_search.focus();
+				}
 			});
 		},
 		generateWordCombinations(inputString) {
@@ -2131,10 +2449,29 @@ export default {
 			this.search_backup = this.first_search;
 			this.first_search = "";
 			this.search = "";
-			// Reset the visible items to the full list
-			this.loadVisibleItems(true);
-			// Refresh items from the server if needed
-			this.get_items();
+
+			if (this.pos_profile?.posa_local_storage && this.storageAvailable) {
+				this.loadVisibleItems(true);
+				if (!this.isBackgroundLoading) {
+					this.verifyServerItemCount();
+				}
+				return;
+			}
+
+			if (this.isBackgroundLoading) {
+				if (this.pendingGetItems) {
+					this.pendingGetItems.force_server = this.pendingGetItems.force_server || false;
+				} else {
+					this.pendingGetItems = { force_server: false };
+				}
+				return;
+			}
+
+			if (!this.items_loaded || !this.items.length) {
+				this.get_items(true);
+			} else {
+				this.eventBus.emit("set_all_items", this.items);
+			}
 		},
 
 		restoreSearch() {
@@ -2151,17 +2488,119 @@ export default {
 			// this.search_backup = "";
 		},
 
+		focusItemSearch() {
+			this.$nextTick(() => {
+				const input = this.$refs.debounce_search;
+				if (input && typeof input.focus === "function") {
+					input.focus();
+				}
+			});
+		},
+
 		clearQty() {
 			this.qty = null;
 		},
 
+		ensureScanAudioContext() {
+			if (typeof window === "undefined") {
+				return null;
+			}
+			if (!this.scanAudioContext) {
+				const AudioContext = window.AudioContext || window.webkitAudioContext;
+				if (!AudioContext) {
+					return null;
+				}
+				this.scanAudioContext = new AudioContext();
+			}
+			if (this.scanAudioContext?.state === "suspended") {
+				this.scanAudioContext.resume().catch(() => {});
+			}
+			return this.scanAudioContext;
+		},
+		playScanTone(type = "success") {
+			if (typeof window === "undefined") {
+				return;
+			}
+			try {
+				const ctx = this.ensureScanAudioContext();
+				if (!ctx) {
+					if (frappe?.utils?.play_sound) {
+						frappe.utils.play_sound(type === "success" ? "submit" : "error");
+					}
+					return;
+				}
+				const now = ctx.currentTime;
+				const duration = type === "success" ? 0.16 : 0.35;
+				const oscillator = ctx.createOscillator();
+				const gainNode = ctx.createGain();
+				oscillator.type = "sine";
+				oscillator.frequency.value = type === "success" ? 880 : 220;
+				gainNode.gain.setValueAtTime(type === "success" ? 0.18 : 0.28, now);
+				gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+				oscillator.connect(gainNode);
+				gainNode.connect(ctx.destination);
+				oscillator.start(now);
+				oscillator.stop(now + duration);
+			} catch (error) {
+				console.warn("Scan tone playback failed:", error);
+				if (frappe?.utils?.play_sound) {
+					frappe.utils.play_sound(type === "success" ? "submit" : "error");
+				}
+			}
+		},
+		showScanError({ message, code = "", details = "" } = {}) {
+			this.scanErrorMessage = message || this.__("Unable to add scanned item.");
+			this.scanErrorCode = code;
+			this.scanErrorDetails = details;
+			if (code) {
+				this.pendingScanCode = code;
+			}
+			this.awaitingScanResult = false;
+			this.search_from_scanner = false;
+			this.scanErrorDialog = true;
+			this.scannerLocked = true;
+			this.playScanTone("error");
+			if (frappe?.show_alert) {
+				frappe.show_alert(
+					{
+						message: this.scanErrorMessage,
+						indicator: "red",
+					},
+					5,
+				);
+			}
+		},
+		acknowledgeScanError() {
+			this.scanErrorDialog = false;
+			this.scannerLocked = false;
+			this.scanErrorMessage = "";
+			this.scanErrorCode = "";
+			this.scanErrorDetails = "";
+			this.pendingScanCode = "";
+			this.awaitingScanResult = false;
+			this.$nextTick(() => {
+				if (this.$refs.debounce_search) {
+					this.$refs.debounce_search.focus();
+				}
+			});
+		},
+
 		startCameraScanning() {
+			if (this.scannerLocked) {
+				this.playScanTone("error");
+				return;
+			}
 			if (this.$refs.cameraScanner) {
 				this.$refs.cameraScanner.startScanning();
 			}
 		},
 		onBarcodeScanned(scannedCode) {
+			if (this.scannerLocked) {
+				this.playScanTone("error");
+				return;
+			}
 			console.log("Barcode scanned:", scannedCode);
+			this.pendingScanCode = scannedCode;
 
 			// mark this search as coming from a scanner
 			this.search_from_scanner = true;
@@ -2184,35 +2623,45 @@ export default {
 			);
 
 			// Enhanced item search and submission logic
-			setTimeout(() => {
-				this.processScannedItem(scannedCode);
-			}, 300);
+			this.processScannedItem(scannedCode);
 		},
 		async processScannedItem(scannedCode) {
-			// First try to find exact match by barcode
+			this.pendingScanCode = scannedCode;
+			// Handle scale barcodes by extracting the item code and quantity
+			let searchCode = scannedCode;
+			let qtyFromBarcode = null;
+			if (
+				this.pos_profile?.posa_scale_barcode_start &&
+				scannedCode.startsWith(this.pos_profile.posa_scale_barcode_start)
+			) {
+				searchCode = this.get_search(scannedCode);
+				qtyFromBarcode = parseFloat(this.get_item_qty(scannedCode));
+			}
+
+			// First try to find exact match by processed code
 			let foundItem = this.items.find((item) => {
 				const barcodeMatch =
-					item.barcode === scannedCode ||
+					item.barcode === searchCode ||
 					(Array.isArray(item.item_barcode) &&
-						item.item_barcode.some((b) => b.barcode === scannedCode)) ||
-					(Array.isArray(item.barcodes) && item.barcodes.some((bc) => String(bc) === scannedCode));
-				return barcodeMatch || item.item_code === scannedCode;
+						item.item_barcode.some((b) => b.barcode === searchCode)) ||
+					(Array.isArray(item.barcodes) && item.barcodes.some((bc) => String(bc) === searchCode));
+				return barcodeMatch || item.item_code === searchCode;
 			});
 
 			if (foundItem) {
-				console.log("Found item by exact match:", foundItem);
-				this.addScannedItemToInvoice(foundItem, scannedCode);
+				console.log("Found item by processed code:", foundItem);
+				await this.addScannedItemToInvoice(foundItem, searchCode, qtyFromBarcode);
 				return;
 			}
 
-			// If not found locally, attempt to fetch from server by barcode
+			// If not found locally, attempt to fetch from server using processed code
 			try {
 				const res = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_items_from_barcode",
 					args: {
 						selling_price_list: this.active_price_list,
 						currency: this.pos_profile.currency,
-						barcode: scannedCode,
+						barcode: searchCode,
 					},
 				});
 
@@ -2228,27 +2677,27 @@ export default {
 					await savePriceListItems(this.customer_price_list, this.items);
 					this.eventBus.emit("set_all_items", this.items);
 					await this.update_items_details([newItem]);
-					this.addScannedItemToInvoice(newItem, scannedCode);
+					await this.addScannedItemToInvoice(newItem, searchCode, qtyFromBarcode);
 					return;
 				}
 
-				frappe.show_alert(
-					{
-						message: `${this.__("Item not found")}: ${scannedCode}`,
-						indicator: "red",
-					},
-					5,
-				);
+				this.first_search = scannedCode;
+				this.search = scannedCode;
+				this.showScanError({
+					message: `${this.__("Item not found")}: ${scannedCode}`,
+					code: scannedCode,
+					details: this.__("Please verify the barcode or check the item's availability."),
+				});
 				return;
 			} catch (e) {
 				console.error("Error fetching item from barcode:", e);
-				frappe.show_alert(
-					{
-						message: `${this.__("Item not found")}: ${scannedCode}`,
-						indicator: "red",
-					},
-					5,
-				);
+				this.first_search = scannedCode;
+				this.search = scannedCode;
+				this.showScanError({
+					message: `${this.__("Item not found")}: ${scannedCode}`,
+					code: scannedCode,
+					details: this.__("The system could not retrieve the item details. Please try again."),
+				});
 				return;
 			}
 		},
@@ -2270,7 +2719,7 @@ export default {
 				);
 			});
 		},
-		async addScannedItemToInvoice(item, scannedCode) {
+		async addScannedItemToInvoice(item, scannedCode, qtyFromBarcode = null) {
 			console.log("Adding scanned item to invoice:", item, scannedCode);
 
 			// Clone the item to avoid mutating list data
@@ -2307,21 +2756,95 @@ export default {
 				}
 			}
 
-			// Use existing add_item method with enhanced feedback
-			await this.add_item(newItem);
+			// Apply quantity from scale barcode if available
+			if (qtyFromBarcode !== null && !isNaN(qtyFromBarcode)) {
+				newItem.qty = qtyFromBarcode;
+				newItem._barcode_qty = true;
+			}
 
-			// Show success message
-			frappe.show_alert(
-				{
-					message: `Added: ${item.item_name}`,
-					indicator: "green",
-				},
-				3,
-			);
+			const requestedQtyRaw =
+				qtyFromBarcode !== null && !isNaN(qtyFromBarcode) ? qtyFromBarcode : (newItem.qty ?? 1);
+			const requestedQty = Math.abs(requestedQtyRaw || 1);
+			const availableQty =
+				typeof newItem.available_qty === "number"
+					? newItem.available_qty
+					: typeof newItem.actual_qty === "number"
+						? newItem.actual_qty
+						: null;
 
-			// Clear search after successful addition and refocus input
-			this.clearSearch();
-			this.$refs.debounce_search && this.$refs.debounce_search.focus();
+			if (availableQty !== null && availableQty < requestedQty) {
+				const formattedAvailable = this.format_number
+					? this.format_number(availableQty, this.hide_qty_decimals ? 0 : this.float_precision)
+					: availableQty;
+				const formattedRequested = this.format_number
+					? this.format_number(requestedQty, this.hide_qty_decimals ? 0 : this.float_precision)
+					: requestedQty;
+				const negativeStockEnabled = this.isNegativeStockEnabled();
+				const shouldBlock =
+					!negativeStockEnabled &&
+					(this.pos_profile?.posa_block_sale_beyond_available_qty || availableQty <= 0);
+
+				if (shouldBlock) {
+					this.showScanError({
+						message: this.__("Quantity not available for {0}", [
+							newItem.item_name || scannedCode,
+						]),
+						code: scannedCode,
+						details: this.__("Available: {0}. Requested: {1}.", [
+							formattedAvailable,
+							formattedRequested,
+						]),
+					});
+					return;
+				}
+
+				if (negativeStockEnabled) {
+					this.eventBus.emit("show_message", {
+						title: this.__(
+							"Available stock {0} is less than requested {1}. Negative stock setting allows continuing.",
+							[formattedAvailable, formattedRequested],
+						),
+						color: "warning",
+					});
+				}
+			}
+
+			this.awaitingScanResult = true;
+
+			try {
+				// Use existing add_item method with enhanced feedback
+				await this.add_item(newItem);
+				this.playScanTone("success");
+				this.scannerLocked = false;
+				this.search_from_scanner = false;
+				this.pendingScanCode = "";
+
+				// Show success message
+				frappe.show_alert(
+					{
+						message: `Added: ${item.item_name}`,
+						indicator: "green",
+					},
+					3,
+				);
+
+				// Clear search after successful addition and refocus input
+				this.clearSearch();
+				this.$refs.debounce_search && this.$refs.debounce_search.focus();
+			} finally {
+				this.awaitingScanResult = false;
+			}
+		},
+		isNegativeStockEnabled() {
+			const setting = this.stock_settings?.allow_negative_stock;
+			if (setting === undefined || setting === null) {
+				return false;
+			}
+			if (typeof setting === "string") {
+				const normalized = setting.toLowerCase();
+				return normalized === "1" || normalized === "true" || normalized === "yes";
+			}
+			return Boolean(setting);
 		},
 		showMultipleItemsDialog(items, scannedCode) {
 			// Create a dialog to let user choose from multiple matches
@@ -2377,17 +2900,13 @@ export default {
 		handleItemNotFound(scannedCode) {
 			console.warn("Item not found for scanned code:", scannedCode);
 
-			// Show error message
-			frappe.show_alert(
-				{
-					message: `Item not found: ${scannedCode}`,
-					indicator: "red",
-				},
-				5,
-			);
-
-			// Keep the search term for manual search
-			this.trigger_onscan(scannedCode);
+			this.first_search = scannedCode;
+			this.search = scannedCode;
+			this.showScanError({
+				message: `${this.__("Item not found")}: ${scannedCode}`,
+				code: scannedCode,
+				details: this.__("This barcode could not be matched to any item."),
+			});
 		},
 
 		currencySymbol(currency) {
@@ -2645,9 +3164,6 @@ export default {
 				this.qty = parsed;
 			}, 200),
 		},
-		isDarkTheme() {
-			return this.$theme.current === "dark";
-		},
 		active_price_list() {
 			return this.customer_price_list || (this.pos_profile && this.pos_profile.selling_price_list);
 		},
@@ -2690,8 +3206,7 @@ export default {
 				if (this.pos_profile && this.pos_profile.name) {
 					console.log("Loading items with POS Profile:", this.pos_profile.name);
 					this.get_items_groups();
-					await this.get_items();
-					this.verifyServerItemCount();
+					await this.initializeItems();
 				} else {
 					console.warn("No POS Profile available during initialization");
 				}
@@ -2701,10 +3216,11 @@ export default {
 		});
 
 		// Event listeners
-		this.eventBus.on("register_pos_profile", (data) => {
+		this.eventBus.on("register_pos_profile", async (data) => {
 			this.pos_profile = data.pos_profile;
+			this.stock_settings = data.stock_settings || {};
 			this.get_items_groups();
-			this.get_items();
+			await this.initializeItems();
 			this.items_view = this.pos_profile.posa_default_card_view ? "card" : "list";
 		});
 		this.eventBus.on("update_cur_items_details", () => {
@@ -2723,6 +3239,10 @@ export default {
 		});
 		this.eventBus.on("update_customer", (data) => {
 			this.customer = data;
+		});
+
+		this.eventBus.on("focus_item_search", () => {
+			this.focusItemSearch();
 		});
 
 		// Manually trigger a full item reload when requested
@@ -2875,6 +3395,15 @@ export default {
 			this.itemWorker.terminate();
 		}
 
+		if (this.scanAudioContext) {
+			try {
+				this.scanAudioContext.close();
+			} catch (error) {
+				console.warn("Scan audio context close failed:", error);
+			}
+			this.scanAudioContext = null;
+		}
+
 		this.eventBus.off("update_currency");
 		this.eventBus.off("server-online");
 		this.eventBus.off("register_pos_profile");
@@ -2884,6 +3413,7 @@ export default {
 		this.eventBus.off("update_customer_price_list");
 		this.eventBus.off("update_customer");
 		this.eventBus.off("force_reload_items");
+		this.eventBus.off("focus_item_search");
 		window.removeEventListener("resize", this.checkItemContainerOverflow);
 	},
 };
@@ -2896,6 +3426,44 @@ export default {
 	padding: var(--dynamic-sm);
 }
 
+.scan-error-dialog {
+	border-radius: 16px;
+}
+
+.scan-error-dialog .scan-error-message {
+	font-weight: 600;
+	font-size: 1.05rem;
+	margin: 0;
+}
+
+.scan-error-dialog .scan-error-code {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-family:
+		"Roboto Mono", "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+		"Courier New", monospace;
+	font-size: 0.95rem;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background-color: rgba(244, 67, 54, 0.12);
+}
+
+.scan-error-dialog .scan-error-details {
+	margin-top: 12px;
+	color: rgba(0, 0, 0, 0.72);
+	line-height: 1.4;
+}
+
+:deep(.v-theme--dark) .scan-error-dialog .scan-error-code {
+	background-color: rgba(244, 67, 54, 0.25);
+	color: #ffebee;
+}
+
+:deep(.v-theme--dark) .scan-error-dialog .scan-error-details {
+	color: rgba(255, 255, 255, 0.7);
+}
+
 .sticky-header {
 	position: sticky;
 	top: 0;
@@ -2903,16 +3471,24 @@ export default {
 	background-color: var(--surface-primary, #fff);
 	padding: var(--dynamic-sm);
 	margin: 0;
-	border-bottom: 1px solid #e0e0e0;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+	/* Performance optimizations for theme switching */
+	contain: layout style;
+	will-change: background-color;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease;
 }
 
-[data-theme="dark"] .sticky-header {
-	background-color: var(--surface-primary, #1e1e1e);
+.sticky-header {
+	background-color: var(--pos-card-bg);
+	border-bottom: 1px solid var(--pos-border);
 }
 
 .dynamic-scroll {
-	transition: max-height var(--transition-normal);
+	transition: max-height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 	padding-bottom: var(--dynamic-sm);
+	contain: layout style;
 }
 
 .item-container {
@@ -2930,21 +3506,28 @@ export default {
 }
 
 .dynamic-item-card {
-	transition: var(--transition-normal);
+	transition:
+		transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 0.2s ease;
 	background-color: var(--surface-secondary);
 	display: flex;
 	flex-direction: column;
 	height: auto;
 	max-width: 180px;
 	box-sizing: border-box;
+	will-change: transform;
+	backface-visibility: hidden;
+	transform: translate3d(0, 0, 0);
 }
 
 .dynamic-item-card .v-img {
 	object-fit: contain;
+	will-change: auto;
 }
 
 .dynamic-item-card:hover {
-	transform: scale(calc(1 + 0.02 * var(--font-scale)));
+	transform: translate3d(0, -2px, 0) scale(1.02);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .text-success {
@@ -3032,6 +3615,10 @@ export default {
 	overflow-y: auto;
 	scrollbar-width: thin;
 	scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+	/* Performance optimizations */
+	contain: layout style;
+	will-change: scroll-position;
+	transform: translate3d(0, 0, 0);
 }
 
 .items-card-grid::-webkit-scrollbar {
@@ -3052,16 +3639,22 @@ export default {
 	border-radius: 12px;
 	border: 1px solid rgba(0, 0, 0, 0.08);
 	overflow: hidden;
-	transition: all 0.3s ease;
+	transition:
+		transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 0.2s ease,
+		border-color 0.2s ease;
 	cursor: pointer;
 	display: flex;
 	flex-direction: column;
 	height: auto;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	will-change: transform;
+	backface-visibility: hidden;
+	transform: translate3d(0, 0, 0);
 }
 
 .card-item-card:hover {
-	transform: translateY(-2px);
+	transform: translate3d(0, -2px, 0);
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 	border-color: var(--primary-color, #1976d2);
 }
@@ -3077,11 +3670,13 @@ export default {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	transition: transform 0.3s ease;
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	will-change: transform;
+	backface-visibility: hidden;
 }
 
 .card-item-card:hover .card-item-image {
-	transform: scale(1.05);
+	transform: scale3d(1.05, 1.05, 1);
 }
 
 .image-placeholder {
@@ -3126,7 +3721,7 @@ export default {
 
 .card-item-code {
 	font-size: 0.75rem;
-	color: var(--text-secondary, #6c757d);
+	color: var(--pos-text-secondary, #6c757d);
 	font-weight: 500;
 	background: rgba(0, 0, 0, 0.04);
 	padding: 2px 6px;
@@ -3199,7 +3794,7 @@ export default {
 }
 
 .stock-icon {
-	color: var(--text-secondary, #6c757d);
+	color: var(--pos-text-secondary, #6c757d);
 }
 
 .stock-amount {
@@ -3218,7 +3813,7 @@ export default {
 
 .stock-uom {
 	font-size: 0.75rem;
-	color: var(--text-secondary, #6c757d);
+	color: var(--pos-text-secondary, #6c757d);
 	font-weight: 500;
 }
 
@@ -3252,7 +3847,7 @@ export default {
 :deep([data-theme="dark"]) .card-item-code,
 :deep(.v-theme--dark) .card-item-code {
 	background: rgba(255, 255, 255, 0.08);
-	color: var(--text-secondary, #b0b0b0);
+	color: var(--pos-text-secondary, #e0e0e0);
 }
 
 :deep([data-theme="dark"]) .card-item-stock,
@@ -3484,6 +4079,89 @@ export default {
 
 	.cards {
 		padding: var(--dynamic-xs) !important;
+	}
+}
+
+/* ===============================================================
+   PERFORMANCE OPTIMIZATIONS FOR THEME SWITCHING
+   =============================================================== */
+
+/* Reduce paint and layout operations during theme transitions */
+* {
+	/* Optimize font rendering to reduce repaints */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Enable hardware acceleration for better performance */
+.dynamic-item-card,
+.card-item-card,
+.items-card-grid,
+.sticky-header {
+	/* Force hardware acceleration */
+	transform: translate3d(0, 0, 0);
+	-webkit-transform: translate3d(0, 0, 0);
+	/* Improve compositing performance */
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+}
+
+/* Optimize theme-sensitive elements */
+[data-theme] .dynamic-item-card,
+[data-theme] .card-item-card,
+[data-theme] .sticky-header {
+	/* Minimize reflow during theme changes */
+	will-change: background-color, border-color, color;
+	transition:
+		background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+		color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent layout shifts during image loading */
+.card-item-image,
+.dynamic-item-card .v-img {
+	content-visibility: auto;
+	contain-intrinsic-size: 120px 120px;
+}
+
+/* Optimize scrolling performance */
+.items-card-grid,
+.item-container {
+	/* Improve scroll performance */
+	overscroll-behavior: contain;
+	scroll-behavior: smooth;
+	/* Enable scroll anchoring */
+	overflow-anchor: auto;
+}
+
+/* Defer non-critical paint operations */
+.card-item-content,
+.dynamic-item-card .v-card-text {
+	contain: style;
+	will-change: auto;
+}
+
+/* Reduce complexity of hover effects */
+@media (hover: hover) {
+	.dynamic-item-card:hover,
+	.card-item-card:hover {
+		/* Use GPU-accelerated transforms only */
+		transition:
+			transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+}
+
+/* Disable animations on reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+	.dynamic-item-card,
+	.card-item-card,
+	.card-item-image,
+	.sticky-header {
+		transition: none !important;
+		animation: none !important;
+		transform: none !important;
 	}
 }
 </style>

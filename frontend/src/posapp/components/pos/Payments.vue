@@ -2,8 +2,7 @@
 <template>
 	<div class="pa-0">
 		<v-card
-			:class="['selection mx-auto pa-1 my-0 mt-3', isDarkTheme ? '' : 'bg-grey-lighten-5']"
-			:style="isDarkTheme ? 'background-color:#1E1E1E' : ''"
+			class="selection mx-auto pa-1 my-0 mt-3 pos-themed-card"
 			style="max-height: 68vh; height: 68vh"
 		>
 			<v-progress-linear
@@ -21,8 +20,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Paid Amount')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							v-model="total_payments_display"
 							readonly
@@ -36,8 +34,7 @@
 							variant="solo"
 							color="primary"
 							label="To Be Paid"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							v-model="diff_payment_display"
 							:prefix="currencySymbol(invoice_doc.currency)"
@@ -53,8 +50,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Paid Change')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:model-value="formatCurrency(paid_change)"
 							:prefix="currencySymbol(invoice_doc.currency)"
 							:rules="paid_change_rules"
@@ -71,8 +67,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Credit Change')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:model-value="formatCurrency(credit_change)"
 							:prefix="currencySymbol(invoice_doc.currency)"
 							density="compact"
@@ -96,8 +91,7 @@
 								variant="solo"
 								color="primary"
 								:label="frappe._(payment.mode_of_payment)"
-								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-								class="dark-field sleek-field"
+								class="sleek-field pos-themed-input"
 								hide-details
 								:model-value="formatCurrency(payment.amount)"
 								@change="setFormatedCurrency(payment, 'amount', null, false, $event)"
@@ -159,8 +153,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Redeem Loyalty Points')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(loyalty_amount)"
 							type="text"
@@ -174,8 +167,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('You can redeem up to')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatFloat(available_points_amount)"
 							:prefix="currencySymbol(invoice_doc.currency)"
@@ -200,8 +192,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Redeemed Customer Credit')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(redeemed_customer_credit)"
 							type="text"
@@ -218,8 +209,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('You can redeem credit up to')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(available_customer_credit)"
 							:prefix="currencySymbol(invoice_doc.currency)"
@@ -238,8 +228,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Net Total')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:model-value="formatCurrency(invoice_doc.net_total, displayCurrency)"
 							readonly
 							:prefix="currencySymbol()"
@@ -252,8 +241,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Tax and Charges')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="
 								formatCurrency(invoice_doc.total_taxes_and_charges, displayCurrency)
@@ -269,8 +257,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Total Amount')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(invoice_doc.total, displayCurrency)"
 							readonly
@@ -284,8 +271,7 @@
 							variant="solo"
 							color="primary"
 							:label="diff_label"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(diff_payment, displayCurrency)"
 							readonly
@@ -299,8 +285,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Discount Amount')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(invoice_doc.discount_amount)"
 							readonly
@@ -314,8 +299,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Grand Total')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(invoice_doc.grand_total)"
 							readonly
@@ -329,8 +313,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Rounded Total')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(invoice_doc.rounded_total)"
 							readonly
@@ -347,8 +330,7 @@
 							format="dd-MM-yyyy"
 							:min-date="new Date()"
 							auto-apply
-							:dark="isDarkTheme"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							@update:model-value="update_delivery_date()"
 						/>
 					</v-col>
@@ -365,8 +347,7 @@
 							:items="addresses"
 							item-title="address_title"
 							item-value="name"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:no-data-text="__('Address not found')"
 							hide-details
 							:customFilter="addressFilter"
@@ -407,10 +388,9 @@
 					<!-- Additional Notes (if enabled in POS profile) -->
 					<v-col cols="12" v-if="pos_profile.posa_display_additional_notes">
 						<v-textarea
-							class="pa-0 dark-field sleek-field"
+							class="pa-0 sleek-field"
 							variant="solo"
 							density="compact"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 							clearable
 							color="primary"
 							auto-grow
@@ -431,8 +411,7 @@
 								:label="frappe._('Purchase Order')"
 								variant="solo"
 								density="compact"
-								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-								class="dark-field sleek-field"
+								class="sleek-field pos-themed-input"
 								clearable
 								color="primary"
 								hide-details
@@ -445,8 +424,7 @@
 								format="dd-MM-yyyy"
 								:min-date="new Date()"
 								auto-apply
-								:dark="isDarkTheme"
-								class="dark-field sleek-field"
+								class="sleek-field pos-themed-input"
 								@update:model-value="update_po_date()"
 							/>
 							<v-text-field
@@ -507,18 +485,16 @@
 							format="dd-MM-yyyy"
 							:min-date="new Date()"
 							auto-apply
-							:dark="isDarkTheme"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							@update:model-value="update_credit_due_date()"
 						/>
 						<v-text-field
-							class="mt-2 dark-field sleek-field"
+							class="mt-2 sleek-field"
 							density="compact"
 							variant="solo"
 							type="number"
 							min="0"
 							max="365"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 							v-model.number="credit_due_days"
 							:label="frappe._('Days until due')"
 							hide-details
@@ -568,8 +544,7 @@
 								variant="solo"
 								color="primary"
 								:label="frappe._('Available Credit')"
-								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-								class="dark-field sleek-field"
+								class="sleek-field pos-themed-input"
 								hide-details
 								:model-value="formatCurrency(row.total_credit)"
 								readonly
@@ -582,8 +557,7 @@
 								variant="solo"
 								color="primary"
 								:label="frappe._('Redeem Credit')"
-								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-								class="dark-field sleek-field"
+								class="sleek-field pos-themed-input"
 								hide-details
 								type="text"
 								:model-value="formatCurrency(row.credit_to_redeem)"
@@ -613,8 +587,7 @@
 							:items="sales_persons"
 							item-title="title"
 							item-value="value"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							:no-data-text="__('Sales Person not found')"
 							hide-details
 							:disabled="readonly"
@@ -634,6 +607,7 @@
 						size="large"
 						color="primary"
 						theme="dark"
+						class="submit-btn"
 						@click="submit"
 						:loading="loading"
 						:disabled="loading || vaildatPayment"
@@ -683,8 +657,7 @@
 							type="number"
 							min="0"
 							max="365"
-							class="dark-field sleek-field"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+							class="sleek-field pos-themed-input"
 							v-model.number="custom_days_value"
 							:label="frappe._('Days')"
 							hide-details
@@ -716,8 +689,7 @@
 							variant="solo"
 							color="primary"
 							:label="frappe._('Mobile Number')"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="sleek-field pos-themed-input"
 							hide-details
 							v-model="invoice_doc.contact_mobile"
 							type="number"
@@ -741,7 +713,7 @@
 <script>
 /* global frappe, __, get_currency_symbol */
 // Importing format mixin for currency and utility functions
-import format from "../../format";
+import format, { formatUtils } from "../../format";
 import {
 	saveOfflineInvoice,
 	syncOfflineInvoices,
@@ -806,13 +778,19 @@ export default {
 		displayCurrency() {
 			return this.invoice_doc ? this.invoice_doc.currency : "";
 		},
+		blockSaleBeyondAvailableQty() {
+			return (
+				!["Order", "Quotation"].includes(this.invoiceType) &&
+				this.pos_profile.posa_block_sale_beyond_available_qty
+			);
+		},
 		// Calculate total payments (all methods, loyalty, credit)
 		total_payments() {
 			let total = 0;
 			if (this.invoice_doc && this.invoice_doc.payments) {
 				this.invoice_doc.payments.forEach((payment) => {
 					// Payment amount is already in selected currency
-					total += parseFloat(payment.amount) || 0;
+					total += parseFloat(formatUtils.fromArabicNumerals(String(payment.amount))) || 0;
 				});
 			}
 
@@ -826,7 +804,7 @@ export default {
 						this.currency_precision,
 					);
 				} else {
-					total += parseFloat(this.loyalty_amount) || 0;
+					total += parseFloat(formatUtils.fromArabicNumerals(String(this.loyalty_amount))) || 0;
 				}
 			}
 
@@ -840,7 +818,9 @@ export default {
 						this.currency_precision,
 					);
 				} else {
-					total += parseFloat(this.redeemed_customer_credit) || 0;
+					total +=
+						parseFloat(formatUtils.fromArabicNumerals(String(this.redeemed_customer_credit))) ||
+						0;
 				}
 			}
 
@@ -951,9 +931,6 @@ export default {
 					(el) => el.fieldtype === "Button" && el.fieldname === "request_for_payment",
 				) || false
 			);
-		},
-		isDarkTheme() {
-			return this.$theme.current === "dark";
 		},
 	},
 	watch: {
@@ -1067,6 +1044,9 @@ export default {
 		back_to_invoice() {
 			this.eventBus.emit("show_payment", "false");
 			this.eventBus.emit("set_customer_readonly", false);
+			this.$nextTick(() => {
+				this.eventBus.emit("focus_item_search");
+			});
 		},
 		// Highlight and focus the submit button when payment screen opens
 		handleShowPayment(data) {
@@ -1262,8 +1242,7 @@ export default {
 							)
 							.join("\n");
 						const blocking =
-							!this.stock_settings.allow_negative_stock ||
-							this.pos_profile.posa_block_sale_beyond_available_qty;
+							!this.stock_settings.allow_negative_stock || this.blockSaleBeyondAvailableQty;
 						this.eventBus.emit("show_message", {
 							title: blocking
 								? __("Insufficient stock:\n{0}", [msg])
@@ -1326,6 +1305,7 @@ export default {
 						this.print_offline_invoice(this.invoice_doc);
 					}
 					vm.eventBus.emit("clear_invoice");
+					vm.eventBus.emit("focus_item_search");
 					vm.eventBus.emit("reset_posting_date");
 					vm.back_to_invoice();
 					vm.loading = false;
@@ -1343,7 +1323,9 @@ export default {
 				method:
 					this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
 						? "posawesome.posawesome.api.sales_orders.submit_sales_order"
-						: "posawesome.posawesome.api.invoices.submit_invoice",
+						: this.invoiceType === "Quotation"
+							? "posawesome.posawesome.api.quotations.submit_quotation"
+							: "posawesome.posawesome.api.invoices.submit_invoice",
 				args: {
 					data: data,
 					invoice: this.invoice_doc,
@@ -1403,7 +1385,9 @@ export default {
 						title:
 							vm.invoiceType === "Order" && vm.pos_profile.posa_create_only_sales_order
 								? __("Sales Order {0} is Submitted", [r.message.name])
-								: __("Invoice {0} is Submitted", [r.message.name]),
+								: vm.invoiceType === "Quotation"
+									? __("Quotation {0} is Submitted", [r.message.name])
+									: __("Invoice {0} is Submitted", [r.message.name]),
 						color: "success",
 					});
 					frappe.utils.play_sound("submit");
@@ -1412,6 +1396,7 @@ export default {
 					updateLocalStock(vm.invoice_doc.items || []);
 					vm.addresses = [];
 					vm.eventBus.emit("clear_invoice");
+					vm.eventBus.emit("focus_item_search");
 					vm.eventBus.emit("reset_posting_date");
 					vm.back_to_invoice();
 					vm.loading = false;
@@ -1805,13 +1790,18 @@ export default {
 		},
 		// Apply preset or typed number of days to set due date
 		applyDuePreset(days) {
-			if (days === null || days === "" || isNaN(days)) {
+			if (days === null || days === "") {
 				return;
 			}
+			const westernDays = formatUtils.fromArabicNumerals(String(days));
+			if (isNaN(westernDays)) {
+				return;
+			}
+			const parsed = parseInt(westernDays, 10);
 			const d = new Date();
-			d.setDate(d.getDate() + parseInt(days, 10));
+			d.setDate(d.getDate() + parsed);
 			this.new_credit_due_date = this.formatDateDisplay(d);
-			this.credit_due_days = parseInt(days, 10);
+			this.credit_due_days = parsed;
 			this.update_credit_due_date();
 		},
 		// Apply days entered in dialog
@@ -1823,38 +1813,41 @@ export default {
 		formatDate(date) {
 			if (!date) return null;
 			if (typeof date === "string") {
-				if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-					return date;
+				const western = formatUtils.fromArabicNumerals(date);
+				if (/^\d{4}-\d{2}-\d{2}$/.test(western)) {
+					return western;
 				}
-				if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(date)) {
-					const [d, m, y] = date.split("-");
+				if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(western)) {
+					const [d, m, y] = western.split("-");
 					return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 				}
+				date = western;
 			}
-			const d = new Date(date);
+			const d = new Date(formatUtils.fromArabicNumerals(String(date)));
 			if (!isNaN(d.getTime())) {
 				const year = d.getFullYear();
 				const month = `0${d.getMonth() + 1}`.slice(-2);
 				const day = `0${d.getDate()}`.slice(-2);
 				return `${year}-${month}-${day}`;
 			}
-			return date;
+			return formatUtils.fromArabicNumerals(String(date));
 		},
 
 		formatDateDisplay(date) {
 			if (!date) return "";
-			if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-				const [y, m, d] = date.split("-");
-				return `${d}-${m}-${y}`;
+			const western = formatUtils.fromArabicNumerals(String(date));
+			if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(western)) {
+				const [y, m, d] = western.split("-");
+				return formatUtils.toArabicNumerals(`${d}-${m}-${y}`);
 			}
-			const d = new Date(date);
+			const d = new Date(western);
 			if (!isNaN(d.getTime())) {
 				const year = d.getFullYear();
 				const month = `0${d.getMonth() + 1}`.slice(-2);
 				const day = `0${d.getDate()}`.slice(-2);
-				return `${day}-${month}-${year}`;
+				return formatUtils.toArabicNumerals(`${day}-${month}-${year}`);
 			}
-			return date;
+			return formatUtils.toArabicNumerals(western);
 		},
 		// Show paid amount info message
 		showPaidAmount() {
@@ -2074,38 +2067,34 @@ export default {
 	background-color: var(--surface-secondary) !important;
 }
 
+.submit-btn {
+	position: relative;
+}
+
+.submit-btn:hover,
+.submit-btn:focus,
+.submit-btn:focus-visible,
+.submit-btn:active {
+	background-color: rgb(var(--v-theme-primary)) !important;
+	color: rgb(var(--v-theme-on-primary)) !important;
+	box-shadow: none;
+}
+
+.submit-btn:focus-visible {
+	outline: 2px solid rgb(var(--v-theme-primary));
+	outline-offset: 2px;
+}
+
+.submit-btn::before,
+.submit-btn:hover::before,
+.submit-btn:focus::before,
+.submit-btn:focus-visible::before,
+.submit-btn:active::before {
+	opacity: 0 !important;
+}
+
 .submit-highlight {
 	box-shadow: 0 0 0 4px rgb(var(--v-theme-primary));
 	transition: box-shadow 0.3s ease-in-out;
-}
-
-/* Dark mode styling for input fields */
-:deep([data-theme="dark"]) .dark-field,
-:deep(.v-theme--dark) .dark-field,
-::v-deep([data-theme="dark"]) .dark-field,
-::v-deep(.v-theme--dark) .dark-field {
-	background-color: #1e1e1e !important;
-}
-
-:deep([data-theme="dark"]) .dark-field :deep(.v-field__input),
-:deep(.v-theme--dark) .dark-field :deep(.v-field__input),
-:deep([data-theme="dark"]) .dark-field :deep(input),
-:deep(.v-theme--dark) .dark-field :deep(input),
-:deep([data-theme="dark"]) .dark-field :deep(.v-label),
-:deep(.v-theme--dark) .dark-field :deep(.v-label),
-::v-deep([data-theme="dark"]) .dark-field .v-field__input,
-::v-deep(.v-theme--dark) .dark-field .v-field__input,
-::v-deep([data-theme="dark"]) .dark-field input,
-::v-deep(.v-theme--dark) .dark-field input,
-::v-deep([data-theme="dark"]) .dark-field .v-label,
-::v-deep(.v-theme--dark) .dark-field .v-label {
-	color: #fff !important;
-}
-
-:deep([data-theme="dark"]) .dark-field :deep(.v-field__overlay),
-:deep(.v-theme--dark) .dark-field :deep(.v-field__overlay),
-::v-deep([data-theme="dark"]) .dark-field .v-field__overlay,
-::v-deep(.v-theme--dark) .dark-field .v-field__overlay {
-	background-color: #1e1e1e !important;
 }
 </style>

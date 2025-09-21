@@ -77,9 +77,7 @@ def create_payment_entry(
     pe.paid_from_account_currency = (
         party_account_currency if payment_type == "Receive" else bank.account_currency
     )
-    pe.paid_to_account_currency = (
-        party_account_currency if payment_type == "Pay" else bank.account_currency
-    )
+    pe.paid_to_account_currency = party_account_currency if payment_type == "Pay" else bank.account_currency
     pe.paid_amount = paid_amount
     pe.received_amount = received_amount
     pe.letter_head = letter_head
@@ -151,9 +149,7 @@ def set_paid_amount_and_received_amount(
 
 
 @frappe.whitelist()
-def get_outstanding_invoices(
-    customer=None, company=None, currency=None, pos_profile=None
-):
+def get_outstanding_invoices(customer=None, company=None, currency=None, pos_profile=None):
     try:
         party_account = get_party_account("Customer", customer, company)
 
@@ -272,9 +268,7 @@ def process_pos_payment(payload):
     pos_opening_shift_name = data.pos_opening_shift_name
     allow_make_new_payments = data.pos_profile.get("posa_allow_make_new_payments")
     allow_reconcile_payments = data.pos_profile.get("posa_allow_reconcile_payments")
-    allow_mpesa_reconcile_payments = data.pos_profile.get(
-        "posa_allow_mpesa_reconcile_payments"
-    )
+    allow_mpesa_reconcile_payments = data.pos_profile.get("posa_allow_mpesa_reconcile_payments")
     today = nowdate()
 
     # prepare invoice list once so allocations can update remaining amounts
@@ -290,9 +284,7 @@ def process_pos_payment(payload):
                 outstanding = flt(si.outstanding_amount)
             except Exception:
                 outstanding = 0
-        remaining_invoices.append(
-            {"name": invoice_name, "outstanding_amount": outstanding}
-        )
+        remaining_invoices.append({"name": invoice_name, "outstanding_amount": outstanding})
 
     new_payments_entry = []
     all_payments_entry = []
@@ -307,47 +299,37 @@ def process_pos_payment(payload):
     ):
         for mpesa_payment in data.selected_mpesa_payments:
             try:
-                new_mpesa_payment = submit_mpesa_payment(
-                    mpesa_payment.get("name"), customer
-                )
+                new_mpesa_payment = submit_mpesa_payment(mpesa_payment.get("name"), customer)
                 new_payments_entry.append(new_mpesa_payment)
                 all_payments_entry.append(new_mpesa_payment)
             except Exception as e:
                 errors.append(str(e))
 
     # then reconcile selected payments with invoices
-    if (
-        allow_reconcile_payments
-        and len(data.selected_payments) > 0
-        and data.total_selected_payments > 0
-    ):
+    if allow_reconcile_payments and len(data.selected_payments) > 0 and data.total_selected_payments > 0:
         for pay in data.selected_payments:
             try:
                 payment_name = pay.get("name")
                 pe_doc = frappe.get_doc("Payment Entry", payment_name)
                 unallocated = flt(pe_doc.unallocated_amount)
                 if unallocated <= 0:
-                    errors.append(
-                        _("Payment {0} is already fully allocated").format(payment_name)
-                    )
+                    errors.append(_("Payment {0} is already fully allocated").format(payment_name))
                     continue
 
-                total_outstanding = sum(
-                    inv["outstanding_amount"] for inv in remaining_invoices
-                )
+                total_outstanding = sum(inv["outstanding_amount"] for inv in remaining_invoices)
                 if total_outstanding <= 0:
                     errors.append(
-                        _(
-                            "No outstanding invoices available for allocation of payment {0}"
-                        ).format(payment_name)
+                        _("No outstanding invoices available for allocation of payment {0}").format(
+                            payment_name
+                        )
                     )
                     continue
 
                 if unallocated > total_outstanding:
                     errors.append(
-                        _(
-                            "Allocation amount for payment {0} exceeds outstanding invoices"
-                        ).format(payment_name)
+                        _("Allocation amount for payment {0} exceeds outstanding invoices").format(
+                            payment_name
+                        )
                     )
                     continue
 
@@ -391,9 +373,7 @@ def process_pos_payment(payload):
 
                 total_allocated = unallocated - remaining_amount
                 if total_allocated <= 0:
-                    errors.append(
-                        _("No allocation made for payment {0}").format(payment_name)
-                    )
+                    errors.append(_("No allocation made for payment {0}").format(payment_name))
                     continue
 
                 reconcile_against_document(entry_list)
@@ -416,11 +396,7 @@ def process_pos_payment(payload):
                 )
 
     # then process the new payments and allocate invoices
-    if (
-        allow_make_new_payments
-        and len(data.payment_methods) > 0
-        and data.total_payment_methods > 0
-    ):
+    if allow_make_new_payments and len(data.payment_methods) > 0 and data.total_payment_methods > 0:
         for payment_method in data.payment_methods:
             try:
                 amount = flt(payment_method.get("amount"))
@@ -465,12 +441,8 @@ def process_pos_payment(payload):
                     allocated_amount += allocation
 
                 payment_entry.total_allocated_amount = allocated_amount
-                payment_entry.unallocated_amount = (
-                    payment_entry.paid_amount - allocated_amount
-                )
-                payment_entry.difference_amount = (
-                    payment_entry.paid_amount - allocated_amount
-                )
+                payment_entry.unallocated_amount = payment_entry.paid_amount - allocated_amount
+                payment_entry.difference_amount = payment_entry.paid_amount - allocated_amount
 
                 payment_entry.save(ignore_permissions=True)
                 payment_entry.submit()
@@ -479,9 +451,7 @@ def process_pos_payment(payload):
                 all_payments_entry.append(payment_entry)
             except Exception as e:
                 errors.append(str(e))
-                frappe.log_error(
-                    f"Error creating payment entry: {str(e)}", "POS Payment Error"
-                )
+                frappe.log_error(f"Error creating payment entry: {str(e)}", "POS Payment Error")
 
     # Old allocation logic disabled
     # then show the results
@@ -555,11 +525,7 @@ def get_party_account(party_type, party, company):
             account = frappe.get_cached_value(
                 "Company",
                 company,
-                (
-                    "default_receivable_account"
-                    if party_type == "Customer"
-                    else "default_payable_account"
-                ),
+                ("default_receivable_account" if party_type == "Customer" else "default_payable_account"),
             )
 
         if not account:
@@ -594,17 +560,11 @@ def create_direct_journal_entry(
 
         # Get receivable account
         receivable_account = get_party_account("Customer", customer, company)
-        frappe.log_error(
-            f"Using receivable account: {receivable_account}", "Direct JE Debug"
-        )
+        frappe.log_error(f"Using receivable account: {receivable_account}", "Direct JE Debug")
 
         if not receivable_account:
-            frappe.log_error(
-                "Receivable account not found, trying default", "Direct JE Debug"
-            )
-            receivable_account = frappe.get_cached_value(
-                "Company", company, "default_receivable_account"
-            )
+            frappe.log_error("Receivable account not found, trying default", "Direct JE Debug")
+            receivable_account = frappe.get_cached_value("Company", company, "default_receivable_account")
 
         if not receivable_account:
             frappe.throw(
@@ -643,9 +603,7 @@ def create_direct_journal_entry(
 
             # If still no bank account, use cash account as fallback
             if not bank_account:
-                frappe.log_error(
-                    "No bank account found, using Cash account", "Direct JE Debug"
-                )
+                frappe.log_error("No bank account found, using Cash account", "Direct JE Debug")
                 cash_account = frappe.get_value(
                     "Mode of Payment Account",
                     {"parent": "Cash", "company": company},
@@ -656,13 +614,9 @@ def create_direct_journal_entry(
                     bank_account = cash_account
                 else:
                     # Final fallback - try to get company's default cash account
-                    bank_account = frappe.get_value(
-                        "Company", company, "default_cash_account"
-                    )
+                    bank_account = frappe.get_value("Company", company, "default_cash_account")
 
-                frappe.log_error(
-                    f"Using fallback cash account: {bank_account}", "Direct JE Debug"
-                )
+                frappe.log_error(f"Using fallback cash account: {bank_account}", "Direct JE Debug")
 
         if not bank_account:
             frappe.throw(
@@ -707,9 +661,7 @@ def create_direct_journal_entry(
             # Calculate allocation for this invoice (limited by remaining amount)
             allocation = min(remaining_amount, outstanding_amount)
             if allocation <= 0:
-                frappe.log_error(
-                    f"Zero allocation for invoice {invoice_name}", "Direct JE Debug"
-                )
+                frappe.log_error(f"Zero allocation for invoice {invoice_name}", "Direct JE Debug")
                 continue
 
             # Subtract from remaining amount
@@ -742,9 +694,7 @@ def create_direct_journal_entry(
 
         # If we have valid entries, save and submit JE
         if len(je.accounts) > 1:  # Need at least 2 entries (bank + receivable)
-            frappe.log_error(
-                f"Saving JE with {len(je.accounts)} entries", "Direct JE Debug"
-            )
+            frappe.log_error(f"Saving JE with {len(je.accounts)} entries", "Direct JE Debug")
 
             # Before saving, validate the accounting data
             total_debit = sum(flt(d.debit_in_account_currency) for d in je.accounts)
@@ -783,9 +733,7 @@ def create_direct_journal_entry(
                         },
                     )
 
-                frappe.log_error(
-                    f"Added adjustment entry to balance JE", "Direct JE Debug"
-                )
+                frappe.log_error(f"Added adjustment entry to balance JE", "Direct JE Debug")
 
             try:
                 je.insert(ignore_permissions=True)
@@ -803,18 +751,14 @@ def create_direct_journal_entry(
                     "allocated_invoices": allocated_invoices,
                 }
             except Exception as save_error:
-                frappe.log_error(
-                    f"Error saving/submitting JE: {str(save_error)}", "Direct JE Error"
-                )
+                frappe.log_error(f"Error saving/submitting JE: {str(save_error)}", "Direct JE Error")
                 frappe.db.rollback()
                 return None
         else:
             frappe.log_error("No valid entries for Journal Entry", "Direct JE Error")
             return None
     except Exception as e:
-        frappe.log_error(
-            f"Error creating direct Journal Entry: {str(e)}", "Direct JE Error"
-        )
+        frappe.log_error(f"Error creating direct Journal Entry: {str(e)}", "Direct JE Error")
         frappe.db.rollback()
         return None
 
@@ -846,12 +790,8 @@ def on_payment_entry_cancel(doc, method):
                 alert=True,
             )
     except Exception as e:
-        frappe.log_error(
-            f"Error cancelling linked Journal Entry: {str(e)}", "POS Error"
-        )
-        frappe.msgprint(
-            f"Error cancelling linked Journal Entry: {str(e)}", indicator="red"
-        )
+        frappe.log_error(f"Error cancelling linked Journal Entry: {str(e)}", "POS Error")
+        frappe.msgprint(f"Error cancelling linked Journal Entry: {str(e)}", indicator="red")
 
 
 # Add this code at the end of the file
@@ -883,19 +823,13 @@ def setup_payment_entry_cancel_hook():
                 )
                 field.insert(ignore_permissions=True)
                 frappe.db.commit()
-                frappe.log_error(
-                    "Successfully created custom field for Payment Entry", "POS Setup"
-                )
+                frappe.log_error("Successfully created custom field for Payment Entry", "POS Setup")
             except frappe.DuplicateEntryError:
                 # Field already exists, which is fine
-                frappe.log_error(
-                    "Custom field already exists for Payment Entry", "POS Setup"
-                )
+                frappe.log_error("Custom field already exists for Payment Entry", "POS Setup")
                 pass
             except Exception as e:
-                frappe.log_error(
-                    f"Error creating custom field: {str(e)}", "POS Setup Error"
-                )
+                frappe.log_error(f"Error creating custom field: {str(e)}", "POS Setup Error")
                 return False
         else:
             frappe.log_error(
@@ -918,9 +852,7 @@ def setup_payment_entry_cancel_hook():
                     "POS Error",
                 )
         else:
-            frappe.log_error(
-                f"Error in setup_payment_entry_cancel_hook: {error_msg}", "POS Error"
-            )
+            frappe.log_error(f"Error in setup_payment_entry_cancel_hook: {error_msg}", "POS Error")
         return False
 
 
@@ -936,9 +868,7 @@ def manual_setup_payment_entry_cancel_hook():
         frappe.msgprint("Payment Entry cancel hook setup successfully", alert=True)
         return {"success": True, "message": "Setup successful"}
     else:
-        frappe.msgprint(
-            "Failed to setup Payment Entry cancel hook. Check error logs.", alert=True
-        )
+        frappe.msgprint("Failed to setup Payment Entry cancel hook. Check error logs.", alert=True)
         return {"success": False, "message": "Setup failed, check logs"}
 
 
@@ -994,9 +924,7 @@ def fix_payment_entry_links():
 
                     if comments:
                         # Found a match! Update the payment entry
-                        frappe.db.set_value(
-                            "Payment Entry", pe.name, "posa_linked_je", je.name
-                        )
+                        frappe.db.set_value("Payment Entry", pe.name, "posa_linked_je", je.name)
 
                         # Add a comment to the payment entry as well
                         frappe.get_doc(

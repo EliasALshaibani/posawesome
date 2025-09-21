@@ -1,10 +1,9 @@
 <template>
-	<nav :class="rtlClasses">
+	<nav :class="['pos-themed-card', rtlClasses]">
 		<!-- Use the modular NavbarAppBar component -->
 		<NavbarAppBar
 			:pos-profile="posProfile"
 			:pending-invoices="pendingInvoices"
-			:is-dark="isDark"
 			:loading-progress="loadingProgress"
 			:loading-active="loadingActive"
 			:loading-message="loadingMessage"
@@ -52,7 +51,6 @@
 					:manual-offline="manualOffline"
 					:network-online="networkOnline"
 					:server-online="serverOnline"
-					:is-dark="isDark"
 					@close-shift="openCloseShift"
 					@print-last-invoice="printLastInvoice"
 					@sync-invoices="syncPendingInvoices"
@@ -72,7 +70,6 @@
 			:company="company"
 			:company-img="companyImg"
 			:items="items"
-			:is-dark="isDark"
 			@change-page="changePage"
 		/>
 
@@ -81,9 +78,9 @@
 
 		<!-- Keep existing dialogs -->
 		<v-dialog v-model="freeze" persistent max-width="290">
-			<v-card>
-				<v-card-title class="text-h5">{{ freezeTitle }}</v-card-title>
-				<v-card-text>{{ freezeMsg }}</v-card-text>
+			<v-card class="pos-themed-card">
+				<v-card-title class="text-h5 pos-text-primary">{{ freezeTitle }}</v-card-title>
+				<v-card-text class="pos-text-secondary">{{ freezeMsg }}</v-card-text>
 			</v-card>
 		</v-dialog>
 
@@ -95,21 +92,24 @@
 		/>
 
 		<!-- Snackbar for notifications -->
-		<v-snackbar 
-			v-model="snack" 
-			:timeout="snackTimeout" 
-			:color="snackColor" 
+		<v-snackbar
+			v-model="snack"
+			:timeout="snackTimeout"
+			:color="snackColor"
 			:location="isRtl ? 'top left' : 'top right'"
 		>
 			{{ snackText }}
 			<template v-slot:actions>
-				<v-btn color="white" variant="text" @click="snack = false">{{ __("Close") }}</v-btn>
+				<v-btn class="pos-themed-button" variant="text" @click="snack = false">{{
+					__("Close")
+				}}</v-btn>
 			</template>
 		</v-snackbar>
 	</nav>
 </template>
 
 <script>
+/* global frappe */
 import NavbarAppBar from "./navbar/NavbarAppBar.vue";
 import NavbarDrawer from "./navbar/NavbarDrawer.vue";
 import NavbarMenu from "./navbar/NavbarMenu.vue";
@@ -132,7 +132,7 @@ export default {
 		return {
 			isRtl,
 			rtlStyles,
-			rtlClasses
+			rtlClasses,
 		};
 	},
 	components: {
@@ -165,7 +165,6 @@ export default {
 			default: () => ({ pending: 0, synced: 0, drafted: 0 }),
 		},
 		manualOffline: Boolean,
-		isDark: Boolean,
 		cacheUsage: {
 			type: Number,
 			default: 0,
@@ -189,7 +188,7 @@ export default {
 		},
 		loadingMessage: {
 			type: String,
-			default: 'Loading app data...',
+			default: "Loading app data...",
 		},
 	},
 	data() {
@@ -201,8 +200,8 @@ export default {
 				{ text: "POS", icon: "mdi-network-pos" },
 				{ text: "Payments", icon: "mdi-credit-card" },
 			],
-                        company: "POS Awesome",
-                        companyImg: posLogo,
+			company: "POS Awesome",
+			companyImg: posLogo,
 			showAboutDialog: false,
 			showOfflineInvoices: false,
 			freeze: false,
@@ -289,8 +288,15 @@ export default {
 				return;
 			}
 			try {
+				let westernPref = null;
+				if (typeof localStorage !== "undefined") {
+					westernPref = localStorage.getItem("use_western_numerals");
+				}
 				await forceClearAllCache();
 				await clearAllCaches({ confirmBeforeClear: false }).catch(() => {});
+				if (westernPref !== null && typeof localStorage !== "undefined") {
+					localStorage.setItem("use_western_numerals", westernPref);
+				}
 				this.showMessage({
 					color: "success",
 					title: this.__("Cache cleared successfully"),
@@ -367,20 +373,14 @@ export default {
 </script>
 
 <style scoped>
-/* Main navigation container styles */
-nav {
+/* Main navigation container styles - scoped to POSApp */
+.posapp nav {
 	position: relative;
 	z-index: 1000;
 }
 
-/* Snackbar positioning */
-:deep(.v-snackbar) {
+/* Snackbar positioning - scoped to POSApp */
+.posapp :deep(.v-snackbar) {
 	z-index: 9999;
-}
-
-/* Dark theme adjustments */
-:deep([data-theme="dark"]) nav,
-:deep(.v-theme--dark) nav {
-	background-color: var(--background) !important;
 }
 </style>

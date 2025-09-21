@@ -1,5 +1,9 @@
 <template>
-	<div class="pos-main-container dynamic-container" :class="rtlClasses" :style="[responsiveStyles, rtlStyles]">
+	<div
+		class="pos-main-container dynamic-container"
+		:class="rtlClasses"
+		:style="[responsiveStyles, rtlStyles]"
+	>
 		<ClosingDialog></ClosingDialog>
 		<Drafts></Drafts>
 		<SalesOrders></SalesOrders>
@@ -9,8 +13,15 @@
 		<Variants></Variants>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
-			<v-col v-show="!payment && !showOffers && !coupons" xl="5" lg="5" md="5" sm="5" cols="12"
-				class="pos dynamic-col">
+			<v-col
+				v-show="!payment && !showOffers && !coupons"
+				xl="5"
+				lg="5"
+				md="5"
+				sm="5"
+				cols="12"
+				class="pos dynamic-col"
+			>
 				<ItemsSelector></ItemsSelector>
 			</v-col>
 			<v-col v-show="showOffers" xl="5" lg="5" md="5" sm="5" cols="12" class="pos dynamic-col">
