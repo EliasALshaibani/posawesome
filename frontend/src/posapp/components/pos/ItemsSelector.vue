@@ -3625,7 +3625,7 @@ export default {
 /* Enhanced Card View Grid Layout - 3 items per row */
 .items-card-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(6, 1fr);
 	gap: 16px;
 	padding: 16px;
 	height: calc(100% - 80px);
@@ -3705,7 +3705,7 @@ export default {
 }
 
 .card-item-content {
-	padding: 12px 16px 16px;
+	padding: 1px 1px 1px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
