@@ -252,7 +252,7 @@
 									<div class="card-item-content">
 										<div class="card-item-header">
 											<h4 class="card-item-name">{{ item.item_name }}</h4>
-											#Here a line has been deleted item.item_code
+											<!-- Here a line has been deleted item.item_code -->
 										</div>
 										<div class="card-item-details">
 											<div class="card-item-price">
