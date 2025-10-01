@@ -1,0 +1,59 @@
+name: Format
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Prettier Format
+        if: github.event_name == 'push'
+        run: npx prettier --write "**/*.{js,vue,css,scss,html}"
+
+      - name: Prettier Check
+        if: github.event_name == 'pull_request'
+        run: npx prettier --check "**/*.{js,vue,css,scss,html}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Python formatting tools
+        run: pip install -r requirements-dev.txt
+
+      - name: Black Format
+        if: github.event_name == 'push'
+        run: black .
+
+      - name: Black Check
+        if: github.event_name == 'pull_request'
+        run: black --check .
+
+      - name: Commit changes
+        if: github.event_name == 'push'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: format code"
+          commit_user_name: GitHub Actions
+          commit_user_email: actions@github.com
