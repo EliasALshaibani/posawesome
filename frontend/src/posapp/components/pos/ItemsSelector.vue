@@ -301,7 +301,7 @@
 													</span>
 												</div>
 											</div>
-											<div class="card-item-stock">
+											<!-- <div class="card-item-stock">
 												<v-icon size="small" class="stock-icon"
 													>mdi-package-variant</v-icon
 												>
@@ -319,7 +319,7 @@
 													}}
 												</span>
 												<span class="stock-uom">{{ item.stock_uom || "" }}</span>
-											</div>
+											</div> -->
 										</div>
 									</div>
 								</div>
@@ -3801,7 +3801,7 @@ export default {
 	font-size: 0.7em;
 }
 
-.card-item-stock {
+/* .card-item-stock {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -3809,7 +3809,7 @@ export default {
 	background: rgba(0, 0, 0, 0.02);
 	border-radius: 6px;
 	margin-top: auto;
-}
+} */
 
 .stock-icon {
 	color: var(--pos-text-secondary, #6c757d);
@@ -4082,7 +4082,7 @@ export default {
 	}
 
 	.card-item-name {
-		font-size: 0.85rem;
+		font-size: 0.7rem;
 	}
 
 	.card-item-code {
