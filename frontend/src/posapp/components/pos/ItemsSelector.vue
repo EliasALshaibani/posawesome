@@ -3713,9 +3713,9 @@ export default {
 }
 
 .card-item-header {
-	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-	padding-bottom: 8px;
-	margin-bottom: 4px;
+	border-bottom: 0.4px solid rgba(0, 0, 0, 0.06);
+	padding-bottom: 0px;
+	margin-bottom: 0px;
 }
 
 .card-item-name {
