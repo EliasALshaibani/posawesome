@@ -3678,7 +3678,7 @@ export default {
 
 .card-item-image-container {
 	position: relative;
-	height: 120px;
+	/* height: 120px; */
 	overflow: hidden;
 	background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
 }
@@ -4045,7 +4045,7 @@ export default {
 /* Responsive breakpoints */
 @media (max-width: 1200px) {
 	.items-card-grid {
-		grid-template-columns: repeat(2, 1fr);
+		grid-template-columns: repeat(6, 1fr);
 		gap: 12px;
 		padding: 12px;
 	}
