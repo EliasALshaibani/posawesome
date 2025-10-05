@@ -3719,7 +3719,7 @@ export default {
 }
 
 .card-item-name {
-	font-size: 0.9rem;
+	font-size: 0.7rem;
 	font-weight: 600;
 	color: var(--text-primary, #2c3e50);
 	margin: 0 0 4px 0;
