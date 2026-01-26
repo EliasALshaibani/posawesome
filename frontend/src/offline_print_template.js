@@ -155,6 +155,89 @@ function defaultOfflineHTML(invoice, terms = "") {
     </table>
     ${termsSection}
     <div class="footer">Thank you, please visit again.</div>
+	<P> ELIAS AL SHIABANI </P>
+    <script>
+    (function(){
+  // بيانات الفاتورة التجريبية
+  const doc = {
+    company: "${invoice.company || "Invoice"}",
+    tax_id: "1234567890",
+    posting_date: "${invoice.posting_date || ""} ${invoice.posting_time || ""}",
+    grand_total: ${invoice.grand_total},
+    total_taxes_and_charges: 1.0
+  };
+
+  // دالة TLV
+  function toTLV(tag, value) {
+    const encoder = new TextEncoder();
+    const val = encoder.encode(value);
+    return [tag, val.length, ...val];
+  }
+
+  // تحويل إلى Base64
+  function base64FromBytes(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  // إنشاء بيانات ZATCA
+  function generateZATCAData(doc) {
+    const tlv = [
+      ...toTLV(1, doc.company || ""),
+      ...toTLV(2, doc.tax_id || ""),
+      ...toTLV(3, doc.posting_date || new Date().toISOString()),
+      ...toTLV(4, (doc.grand_total || 0).toFixed(2)),
+      ...toTLV(5, (doc.total_taxes_and_charges || 0).toFixed(2))
+    ];
+    return base64FromBytes(tlv);
+  }
+
+  const data = generateZATCAData(doc);
+
+  // إنشاء div للباركود وإضافته للصفحة
+  const container = document.createElement('div');
+  container.id = 'zatca_qr';
+  container.style.textAlign = 'center';
+  container.style.margin = '10px 0';
+  document.body.appendChild(container);
+
+  // إضافة مكتبة QRCode.js إذا لم تكن موجودة
+  if (!window.QRCode) {
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    script.onload = generateQR;
+    document.body.appendChild(script);
+  } else {
+    generateQR();
+  }
+
+  function generateQR() {
+    const qr = new QRCode(container, {
+      text: data,
+      width: 128,
+      height: 128,
+      correctLevel: QRCode.CorrectLevel.L
+    });
+
+    // تحويل canvas إلى img لزيادة التوافق
+    setTimeout(() => {
+      const canvas = container.querySelector('canvas');
+      if (canvas) {
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL("image/png");
+        container.innerHTML = '';
+        container.appendChild(img);
+      }
+    }, 200);
+  }
+
+})();
+
+    </script>
+      
 </body>
 </html>`;
 }
