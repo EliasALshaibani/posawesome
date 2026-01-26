@@ -1,18 +1,27 @@
 import { clearPriceListCache } from "../../../offline/index.js";
+import { useCustomersStore } from "../../stores/customersStore.js";
 /* global frappe */
 
 export default {
 	// Watch for customer change and update related data
-	customer() {
+	customer(newValue, oldValue) {
+		if (newValue === oldValue) {
+			return;
+		}
+		console.log("Customer watcher triggered:", { newValue, oldValue });
 		this.close_payments();
-		this.eventBus.emit("set_customer", this.customer);
+		const customersStore = useCustomersStore();
+		customersStore.setSelectedCustomer(this.customer || null);
 		this.fetch_customer_details();
 		this.fetch_customer_balance();
 		this.set_delivery_charges();
+		this.sync_invoice_customer_details();
 	},
 	// Watch for customer_info change and emit to edit form
 	customer_info() {
-		this.eventBus.emit("set_customer_info_to_edit", this.customer_info);
+		const customersStore = useCustomersStore();
+		customersStore.setCustomerInfo(this.customer_info || {});
+		this.sync_invoice_customer_details(this.customer_info);
 	},
 	// Watch for expanded row change and update item detail
 	expanded(data_value) {
@@ -30,23 +39,27 @@ export default {
 			value: this.discount_percentage_offer_name,
 		});
 	},
-	// Watch for items array changes (deep) and re-handle offers
-	items: {
-		deep: true,
+
+	// Optimized watcher: Track store version instead of deep watching items array
+	"invoiceStore.metadata.changeVersion": {
 		handler() {
-			if (this.isApplyingOffer) return;
-			this.handelOffers();
-			this.$forceUpdate();
+			// This covers both items and packed_items changes if they modify the store
+			if (typeof this.emitCartQuantities === "function") {
+				// emitCartQuantities is usually debounced internally or cheap enough
+				this.emitCartQuantities();
+			}
+
+			// Offer refresh is now handled explicitly by actions (addItem/updateItem)
+			// or via the background sync mechanism.
+			// If we need a catch-all, we could schedule it here, but avoiding it prevents double-work.
 		},
 	},
-	packed_items: {
-		deep: true,
-		handler() {
-			if (this.isApplyingOffer) return;
-			this.handelOffers();
-			this.$forceUpdate();
-		},
-	},
+
+	// Keep a shallow watcher on packed_items just in case (for non-store flows)
+	// But ideally we should rely on the store version.
+	// If legacy code mutates items directly without store, this won't catch it,
+	// but our new architecture pushes updates through store actions.
+
 	// Watch for invoice type change and emit
 	invoiceType() {
 		this.eventBus.emit("update_invoice_type", this.invoiceType);
@@ -57,8 +70,21 @@ export default {
 			this.additional_discount_percentage = 0;
 		} else if (this.pos_profile.posa_use_percentage_discount) {
 			// Prevent division by zero which causes NaN
-			if (this.Total && this.Total !== 0) {
-				this.additional_discount_percentage = (this.additional_discount / this.Total) * 100;
+			const baseTotal =
+				this.Total && this.Total !== 0
+					? this.isReturnInvoice
+						? Math.abs(this.Total)
+						: this.Total
+					: 0;
+
+			if (baseTotal) {
+				let computedPercentage = (this.additional_discount / baseTotal) * 100;
+
+				if (this.isReturnInvoice) {
+					computedPercentage = -Math.abs(computedPercentage);
+				}
+
+				this.additional_discount_percentage = computedPercentage;
 			} else {
 				this.additional_discount_percentage = 0;
 			}
@@ -82,9 +108,19 @@ export default {
 		// Clear cached price list items to avoid mixing rates
 		clearPriceListCache();
 
-		const price_list = newVal === this.pos_profile.selling_price_list ? null : newVal;
+		const effectivePriceList =
+			typeof this.get_effective_price_list === "function"
+				? this.get_effective_price_list()
+				: this.pos_profile?.selling_price_list;
+
+		if (newVal !== effectivePriceList) {
+			this.selected_price_list = effectivePriceList;
+		}
+
+		const price_list =
+			effectivePriceList === this.pos_profile.selling_price_list ? null : effectivePriceList;
 		this.eventBus.emit("update_customer_price_list", price_list);
-		const applied = newVal || this.pos_profile.selling_price_list;
+		const applied = effectivePriceList || this.pos_profile.selling_price_list;
 		this.apply_cached_price_list(applied);
 
 		// If multi-currency is enabled, sync currency with the price list currency
@@ -101,6 +137,27 @@ export default {
 					}
 				},
 			});
+		}
+
+		if (Array.isArray(this.items)) {
+			this.items.forEach((item) => {
+				item._detailSynced = false;
+			});
+		}
+		if (Array.isArray(this.packed_items)) {
+			this.packed_items.forEach((item) => {
+				item._detailSynced = false;
+			});
+		}
+
+		if (typeof this.clearItemDetailCache === "function") {
+			this.clearItemDetailCache();
+		}
+		if (typeof this.clearItemStockCache === "function") {
+			this.clearItemStockCache();
+		}
+		if (this.available_stock_cache) {
+			this.available_stock_cache = {};
 		}
 	},
 

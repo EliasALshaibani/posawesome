@@ -1,9 +1,28 @@
 <template>
-	<v-menu :min-width="240" :close-on-content-click="true" location="bottom end" :offset="[0, 4]">
+	<v-menu
+		:min-width="isMobile ? 280 : 240"
+		:close-on-content-click="true"
+		:location="isMobile ? 'bottom end' : 'bottom end'"
+		:offset="[0, 4]"
+		:max-height="isMobile ? '90vh' : undefined"
+	>
 		<template #activator="{ props }">
-			<v-btn v-bind="props" variant="elevated" class="menu-btn-compact pos-themed-button">
-				{{ __("Menu") }}
-				<v-icon end size="16" class="ml-1 pos-text-primary">mdi-menu-down</v-icon>
+			<v-btn
+				v-bind="props"
+				:variant="isMobile ? 'text' : 'elevated'"
+				:icon="isMobile"
+				:class="[
+					'menu-btn-compact pos-themed-button',
+					isMobile ? 'mobile-menu-btn' : 'desktop-menu-btn',
+				]"
+			>
+				<template v-if="isMobile">
+					<v-icon class="pos-text-primary">mdi-dots-vertical</v-icon>
+				</template>
+				<template v-else>
+					{{ __("Menu") }}
+					<v-icon end size="16" class="ml-1 pos-text-primary">mdi-menu-down</v-icon>
+				</template>
 			</v-btn>
 		</template>
 		<v-card class="menu-card-compact pos-themed-card" elevation="12">
@@ -11,12 +30,58 @@
 				<v-icon class="pos-text-primary" size="20">mdi-menu</v-icon>
 				<span class="menu-header-text-compact pos-text-primary">{{ __("Actions") }}</span>
 			</div>
-			<v-list density="compact" class="menu-list-compact">
-				<v-list-item
-					v-if="!posProfile.posa_hide_closing_shift"
-					@click="$emit('close-shift')"
-					class="menu-item-compact primary-action"
-				>
+
+			<div class="menu-content-scrollable">
+				<!-- Mobile-only: Show hidden items first -->
+				<template v-if="isMobile">
+					<v-list density="compact" class="menu-list-compact mobile-only-section">
+						<!-- Profile Information on mobile -->
+						<v-list-item class="menu-item-compact profile-info-mobile">
+							<template v-slot:prepend>
+								<div class="menu-icon-wrapper-compact info-icon">
+									<v-icon color="white" size="16">mdi-account-circle</v-icon>
+								</div>
+							</template>
+							<div class="menu-content-compact">
+								<v-list-item-title class="menu-item-title-compact">{{
+									displayUserName
+								}}</v-list-item-title>
+								<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+									__("Current User")
+								}}</v-list-item-subtitle>
+							</div>
+						</v-list-item>
+
+						<!-- Cache and System Status on mobile -->
+						<v-list-item
+							class="menu-item-compact system-info-mobile"
+							@click="$emit('refresh-cache-usage')"
+						>
+							<template v-slot:prepend>
+								<div class="menu-icon-wrapper-compact neutral-icon">
+									<v-icon color="white" size="16">mdi-database-clock</v-icon>
+								</div>
+							</template>
+							<div class="menu-content-compact">
+								<v-list-item-title class="menu-item-title-compact">{{
+									__("System Status")
+								}}</v-list-item-title>
+								<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+									__("Check cache and performance")
+								}}</v-list-item-subtitle>
+							</div>
+						</v-list-item>
+
+						<v-divider class="menu-section-divider-compact"></v-divider>
+					</v-list>
+				</template>
+
+				<v-list density="compact" class="menu-list-compact">
+					<v-list-item
+						v-if="!posProfile.posa_hide_closing_shift"
+						@click="$emit('close-shift')"
+						class="menu-item-compact primary-action"
+					>
 					<template v-slot:prepend>
 						<div class="menu-icon-wrapper-compact primary-icon">
 							<v-icon color="white" size="16">mdi-content-save-move-outline</v-icon>
@@ -149,13 +214,13 @@
 					<template v-slot:prepend>
 						<div class="menu-icon-wrapper-compact info-icon">
 							<v-icon color="white" size="16">{{
-								$theme.isDark ? "mdi-white-balance-sunny" : "mdi-moon-waning-crescent"
+								$theme.isDark.value ? "mdi-white-balance-sunny" : "mdi-moon-waning-crescent"
 							}}</v-icon>
 						</div>
 					</template>
 					<div class="menu-content-compact">
 						<v-list-item-title class="menu-item-title-compact">{{
-							$theme.isDark ? __("Light Mode") : __("Dark Mode")
+							$theme.isDark.value ? __("Light Mode") : __("Dark Mode")
 						}}</v-list-item-title>
 						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
 							__("Switch theme appearance")
@@ -179,6 +244,7 @@
 					</div>
 				</v-list-item>
 			</v-list>
+			</div>
 		</v-card>
 	</v-menu>
 
@@ -310,6 +376,7 @@ export default {
 			changing: false,
 			useWesternNumerals: false,
 			originalWesternNumerals: false,
+			windowWidth: window.innerWidth,
 			notification: {
 				show: false,
 				message: "",
@@ -317,6 +384,17 @@ export default {
 				timeout: 3000,
 			},
 		};
+	},
+	mounted() {
+		// Add window resize listener for responsive behavior
+		this.handleResize = () => {
+			this.windowWidth = window.innerWidth;
+		};
+		window.addEventListener("resize", this.handleResize);
+	},
+	beforeUnmount() {
+		// Clean up the event listener
+		window.removeEventListener("resize", this.handleResize);
 	},
 	computed: {
 		canChangeLanguage() {
@@ -330,8 +408,38 @@ export default {
 			const lang = this.availableLanguages.find((l) => l.code === this.selectedLanguage);
 			return lang?.name || this.selectedLanguage.toUpperCase();
 		},
+		// Mobile breakpoint detection
+		isMobile() {
+			return this.windowWidth < 768;
+		},
+		isTablet() {
+			return this.windowWidth >= 768 && this.windowWidth < 1024;
+		},
+		isDesktop() {
+			return this.windowWidth >= 1024;
+		},
+		// Display name for mobile menu
+		displayUserName() {
+			// Show POS profile name if available, otherwise show user name
+			if (this.posProfile && this.posProfile.name) {
+				return this.posProfile.name;
+			}
+
+			// Fallback to Frappe user
+			if (typeof frappe !== "undefined" && frappe.session) {
+				if (frappe.session.user_fullname) {
+					return frappe.session.user_fullname;
+				}
+				if (frappe.session.user) {
+					return frappe.session.user;
+				}
+			}
+
+			return "User";
+		},
 	},
 	async mounted() {
+		// Add window resize listener for responsive behavior (already added above)
 		await this.initializeLanguage();
 		this.initializeWesternNumerals();
 	},
@@ -479,6 +587,7 @@ export default {
 		"show-about",
 		"toggle-theme",
 		"logout",
+		"refresh-cache-usage",
 	],
 };
 </script>
@@ -502,6 +611,30 @@ export default {
 	min-width: 90px;
 	height: 36px;
 	color: #1976d2 !important;
+}
+
+/* Mobile Menu Button Styles */
+.mobile-menu-btn {
+	margin: 0 !important;
+	padding: 6px !important;
+	border-radius: 12px !important;
+	min-width: 36px !important;
+	max-width: 36px !important;
+	width: 36px !important;
+	height: 36px !important;
+	background: rgba(25, 118, 210, 0.08) !important;
+	border: 1px solid rgba(25, 118, 210, 0.12) !important;
+}
+
+.mobile-menu-btn:hover {
+	background: rgba(25, 118, 210, 0.12) !important;
+	border-color: rgba(25, 118, 210, 0.2) !important;
+	transform: translateY(-1px);
+}
+
+/* Desktop Menu Button - keep existing styling */
+.desktop-menu-btn {
+	/* Inherits from .menu-btn-compact */
 }
 
 /* Elite menu button text and icon colors */
@@ -543,6 +676,16 @@ export default {
 	min-width: 260px;
 	max-width: 280px;
 	margin-top: 2px;
+	display: flex;
+	flex-direction: column;
+	max-height: 85vh;
+}
+
+.menu-content-scrollable {
+	overflow-y: auto;
+	flex: 1;
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
 }
 
 /* Elite Menu Header */
@@ -554,6 +697,7 @@ export default {
 	align-items: center;
 	gap: 10px;
 	border-bottom: 1px solid rgba(25, 118, 210, 0.08);
+	flex-shrink: 0;
 }
 
 .menu-header-text-compact {
@@ -727,9 +871,10 @@ export default {
 /* Compact Responsive Design */
 @media (max-width: 768px) {
 	.menu-card-compact {
-		min-width: 240px;
-		max-width: 260px;
+		min-width: 280px;
+		max-width: 320px;
 		border-radius: 14px;
+		min-height: 300px;
 	}
 
 	.menu-item-compact {
@@ -758,8 +903,8 @@ export default {
 
 @media (max-width: 480px) {
 	.menu-card-compact {
-		min-width: 220px;
-		max-width: 240px;
+		min-width: 260px;
+		max-width: 300px;
 	}
 
 	.menu-item-compact {

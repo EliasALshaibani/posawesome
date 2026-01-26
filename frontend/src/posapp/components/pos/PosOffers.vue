@@ -91,8 +91,15 @@
 <script>
 /* global __, frappe */
 import format from "../../format";
+import { useCustomersStore } from "../../stores/customersStore.js";
+import { storeToRefs } from "pinia";
 export default {
 	mixins: [format],
+	setup() {
+		const customersStore = useCustomersStore();
+		const { selectedCustomer } = storeToRefs(customersStore);
+		return { selectedCustomer };
+	},
 	data: () => ({
 		loading: false,
 		pos_profile: "",
@@ -311,6 +318,12 @@ export default {
 				this.updatePosCoupuns();
 			},
 		},
+		selectedCustomer(newCustomer, oldCustomer) {
+			if (newCustomer === oldCustomer) {
+				return;
+			}
+			this.offers = [];
+		},
 	},
 
 	created: function () {
@@ -318,11 +331,6 @@ export default {
 			this.eventBus.on("register_pos_profile", (data) => {
 				this.pos_profile = data.pos_profile;
 			});
-		});
-		this.eventBus.on("update_customer", (customer) => {
-			if (this.customer != customer) {
-				this.offers = [];
-			}
 		});
 		this.eventBus.on("update_pos_offers", (data) => {
 			this.updatePosOffers(data);

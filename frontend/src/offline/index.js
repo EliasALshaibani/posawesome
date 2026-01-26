@@ -56,6 +56,9 @@ export {
 	forceClearAllCache,
 	getCacheUsageEstimate,
 	isCacheReady,
+	savePricingRulesSnapshot,
+	getCachedPricingRulesSnapshot,
+	clearPricingRulesSnapshot,
 } from "./cache.js";
 
 // Stock exports
@@ -110,6 +113,7 @@ export {
 	saveItemsBulk,
 	getAllStoredItems,
 	searchStoredItems,
+	clearItemDetailsCache,
 } from "./items.js";
 
 export { saveItemGroups, getCachedItemGroups, clearItemGroups } from "./item_groups.js";

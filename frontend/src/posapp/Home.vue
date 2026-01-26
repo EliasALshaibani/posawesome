@@ -1,7 +1,9 @@
 <template>
 	<v-app class="container1" :class="rtlClasses">
 		<AppLoadingOverlay :visible="globalLoading" />
+		<UpdatePrompt />
 		<v-main class="main-content">
+			<ClosingDialog />
 			<Navbar
 				:pos-profile="posProfile"
 				:pending-invoices="pendingInvoices"
@@ -15,7 +17,6 @@
 				:cache-usage="cacheUsage"
 				:cache-usage-loading="cacheUsageLoading"
 				:cache-usage-details="cacheUsageDetails"
-				:cache-ready="cacheReady"
 				:loading-progress="loadingProgress"
 				:loading-active="loadingActive"
 				:loading-message="loadingMessage"
@@ -42,9 +43,14 @@
 import Navbar from "./components/Navbar.vue";
 import POS from "./components/pos/Pos.vue";
 import Payments from "./components/payments/Pay.vue";
+import ClosingDialog from "./components/pos/ClosingDialog.vue";
 import AppLoadingOverlay from "./components/ui/LoadingOverlay.vue";
+import UpdatePrompt from "./components/ui/UpdatePrompt.vue";
 import { useLoading } from "./composables/useLoading.js";
+import { usePosShift } from "./composables/usePosShift.js";
 import { loadingState, initLoadingSources, setSourceProgress, markSourceLoaded } from "./utils/loading.js";
+import { useCustomersStore } from "./stores/customersStore.js";
+import { storeToRefs } from "pinia";
 import {
 	getOpeningStorage,
 	getCacheUsageEstimate,
@@ -53,7 +59,6 @@ import {
 	purgeOldQueueEntries,
 	initPromise,
 	memoryInitPromise,
-	isCacheReady,
 	toggleManualOffline,
 	isManualOffline,
 	syncOfflineInvoices,
@@ -61,7 +66,12 @@ import {
 	isOffline,
 	getLastSyncTotals,
 } from "../offline/index.js";
-import { silentPrint } from "./plugins/print.js";
+import {
+	appendDebugPrintParam,
+	isDebugPrintEnabled,
+	silentPrint,
+	watchPrintWindow,
+} from "./plugins/print.js";
 import {
 	setupNetworkListeners,
 	checkNetworkConnectivity,
@@ -78,11 +88,13 @@ export default {
 	setup() {
 		const { isRtl, rtlStyles, rtlClasses } = useRtl();
 		const { overlayVisible } = useLoading();
+		const { get_closing_data } = usePosShift();
 		return {
 			isRtl,
 			rtlStyles,
 			rtlClasses,
 			globalLoading: overlayVisible,
+			get_closing_data,
 		};
 	},
 	data: function () {
@@ -108,7 +120,6 @@ export default {
 			cacheUsage: 0,
 			cacheUsageLoading: false,
 			cacheUsageDetails: { total: 0, indexedDB: 0, localStorage: 0 },
-			cacheReady: false,
 
 			// Loading progress handled via utility
 		};
@@ -146,17 +157,37 @@ export default {
 		Navbar,
 		POS,
 		Payments,
+		ClosingDialog,
 		AppLoadingOverlay,
+		UpdatePrompt,
 	},
 	mounted() {
 		this.remove_frappe_nav();
-		// Initialize cache ready state early from stored value
-		this.cacheReady = isCacheReady();
+		this.adjust_frappe_sidebar_offset();
+		window.addEventListener("resize", this.adjust_frappe_sidebar_offset);
 		initLoadingSources(["init", "items", "customers"]);
 		this.initializeData();
 		this.setupNetworkListeners();
 		this.setupEventListeners();
 		this.handleRefreshCacheUsage();
+		const customersStore = useCustomersStore();
+		const { loadProgress, customersLoaded } = storeToRefs(customersStore);
+		this.$watch(
+			() => loadProgress.value,
+			(progress) => {
+				setSourceProgress("customers", progress);
+			},
+			{ immediate: true },
+		);
+		this.$watch(
+			() => customersLoaded.value,
+			(loaded) => {
+				if (loaded) {
+					markSourceLoaded("customers");
+				}
+			},
+			{ immediate: true },
+		);
 	},
 	methods: {
 		setupNetworkListeners,
@@ -174,7 +205,6 @@ export default {
 		async initializeData() {
 			await initPromise;
 			await memoryInitPromise;
-			this.cacheReady = true;
 			checkDbHealth().catch(() => {});
 			// Load POS profile from cache or storage
 			const openingData = getOpeningStorage();
@@ -314,8 +344,7 @@ export default {
 		},
 
 		handleCloseShift() {
-			// Trigger POS closing dialog via event bus
-			this.eventBus.emit("open_closing_dialog");
+			this.get_closing_data();
 		},
 
 		handlePrintLastInvoice() {
@@ -328,7 +357,8 @@ export default {
 			const doctype = this.posProfile.create_pos_invoice_instead_of_sales_invoice
 				? "POS Invoice"
 				: "Sales Invoice";
-			const url =
+			const debugPrint = isDebugPrintEnabled();
+			let url =
 				frappe.urllib.get_base_url() +
 				"/printview?doctype=" +
 				encodeURIComponent(doctype) +
@@ -340,17 +370,21 @@ export default {
 				"&no_letterhead=" +
 				letter_head;
 
+			url = appendDebugPrintParam(url, debugPrint);
+			const printOptions = {
+				allowOfflineFallback: isOffline(),
+				triggerPrint: "1",
+				debugPrint,
+				debugInfo: {
+					printFormat: print_format,
+					templatePath: "online-printview",
+				},
+			};
 			if (this.posProfile.posa_silent_print) {
-				silentPrint(url);
+				silentPrint(url, printOptions);
 			} else {
 				const printWindow = window.open(url, "Print");
-				printWindow.addEventListener(
-					"load",
-					function () {
-						printWindow.print();
-					},
-					{ once: true },
-				);
+				watchPrintWindow(printWindow, printOptions);
 			}
 		},
 
@@ -462,10 +496,25 @@ export default {
 		},
 
 		remove_frappe_nav() {
-			this.$nextTick(function () {
+			this.$nextTick(() => {
 				$(".page-head").remove();
 				$(".navbar.navbar-default.navbar-fixed-top").remove();
+				this.adjust_frappe_sidebar_offset();
 			});
+		},
+		adjust_frappe_sidebar_offset() {
+			const sidebar = document.querySelector(
+				".desk-sidebar, .app-sidebar, .sidebar, .side-section, .layout-side-section",
+			);
+			let sidebarWidth = 0;
+			if (sidebar) {
+				const sidebarStyles = window.getComputedStyle(sidebar);
+				const rect = sidebar.getBoundingClientRect();
+				if (sidebarStyles.display !== "none" && rect.width > 0) {
+					sidebarWidth = rect.width;
+				}
+			}
+			document.documentElement.style.setProperty("--posa-desk-sidebar-width", `${sidebarWidth}px`);
 		},
 	},
 	beforeUnmount() {
@@ -473,6 +522,7 @@ export default {
 			this.eventBus.off("pending_invoices_changed");
 			this.eventBus.off("data-loaded");
 		}
+		window.removeEventListener("resize", this.adjust_frappe_sidebar_offset);
 	},
 	created: function () {
 		setTimeout(() => {
@@ -488,6 +538,8 @@ export default {
 	height: 100dvh;
 	max-height: 100dvh;
 	overflow: hidden;
+	padding-inline-start: var(--posa-desk-sidebar-width, 0px);
+	box-sizing: border-box;
 }
 
 .main-content {

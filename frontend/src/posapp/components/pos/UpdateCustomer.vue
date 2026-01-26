@@ -1,6 +1,11 @@
 <template>
 	<v-row justify="center">
-		<v-dialog v-model="customerDialog" max-width="600px" persistent>
+		<v-dialog
+			v-model="customerDialog"
+			max-width="600px"
+			persistent
+			@keydown.esc.capture.stop.prevent="handleDialogEscape"
+		>
 			<v-card>
 				<v-card-title class="d-flex align-center">
 					<span v-if="customer_id" class="text-h5 text-primary">{{ __("Update Customer") }}</span>
@@ -20,6 +25,7 @@
 						<v-row>
 							<v-col cols="12">
 								<v-text-field
+									ref="customerNameField"
 									density="compact"
 									color="primary"
 									:label="frappe._('Customer Name') + ' *'"
@@ -186,7 +192,11 @@
 		</v-dialog>
 
 		<!-- Confirmation Dialog -->
-		<v-dialog v-model="confirmDialog" max-width="400px">
+		<v-dialog
+			v-model="confirmDialog"
+			max-width="400px"
+			@keydown.esc.capture.stop.prevent="handleConfirmEscape"
+		>
 			<v-card>
 				<v-card-title class="text-h5 text-primary">
 					{{ __("Confirm Close") }}
@@ -210,6 +220,7 @@
 
 <script>
 import { isOffline, saveOfflineCustomer } from "../../../offline/index.js";
+import { useCustomersStore } from "../../stores/customersStore.js";
 
 export default {
 	data: () => ({
@@ -337,6 +348,24 @@ export default {
 	},
 	computed: {},
 	methods: {
+		focusCustomerNameField() {
+			this.$nextTick(() => {
+				const field = this.$refs.customerNameField;
+				if (field && typeof field.focus === "function") {
+					field.focus();
+				}
+			});
+		},
+		handleDialogEscape() {
+			if (this.confirmDialog) {
+				this.confirmClose();
+				return;
+			}
+			this.confirm_close();
+		},
+		handleConfirmEscape() {
+			this.confirmClose();
+		},
 		// Add a new method to update calendar date
 		updateCalendarDate(day, month, year) {
 			// First close the date picker if it's open
@@ -467,7 +496,7 @@ export default {
 				}
 			}
 		},
-		submit_dialog() {
+		async submit_dialog() {
 			const vm = this;
 			if (!this.customer_name) {
 				frappe.throw(__("Customer Name is required"));
@@ -560,12 +589,20 @@ export default {
 				method: this.customer_id ? "update" : "create",
 			};
 
+			const customersStore = useCustomersStore();
+
 			if (isOffline()) {
 				saveOfflineCustomer({ args: apiArgs });
 				vm.eventBus.emit("show_message", { title: __("Customer saved offline"), color: "warning" });
 				args.name = this.customer_name;
-				vm.eventBus.emit("add_customer_to_list", args);
-				vm.eventBus.emit("set_customer", args.name);
+				await customersStore.addOrUpdateCustomer({
+					name: args.name,
+					customer_name: args.customer_name,
+					mobile_no: args.mobile_no,
+					email_id: args.email_id,
+					tax_id: args.tax_id,
+					primary_address: args.address_line1,
+				});
 				vm.close_dialog();
 				return;
 			}
@@ -573,7 +610,7 @@ export default {
 			frappe.call({
 				method: "posawesome.posawesome.api.customers.create_customer",
 				args: apiArgs,
-				callback: (r) => {
+				callback: async (r) => {
 					if (!r.exc && r.message.name) {
 						let text = __("Customer created successfully.");
 						if (vm.customer_id) {
@@ -585,9 +622,14 @@ export default {
 						});
 						args.name = r.message.name;
 						frappe.utils.play_sound("submit");
-						vm.eventBus.emit("add_customer_to_list", args);
-						vm.eventBus.emit("set_customer", r.message.name);
-						vm.eventBus.emit("fetch_customer_details");
+						await customersStore.addOrUpdateCustomer({
+							name: args.name,
+							customer_name: args.customer_name,
+							mobile_no: args.mobile_no,
+							email_id: args.email_id,
+							tax_id: args.tax_id,
+							primary_address: args.address_line1,
+						});
 						vm.close_dialog();
 					} else {
 						frappe.utils.play_sound("error");
@@ -641,6 +683,7 @@ export default {
 		}
 		this.eventBus.on("open_update_customer", (data) => {
 			this.customerDialog = true;
+			this.focusCustomerNameField();
 
 			if (data) {
 				this.customer_name = data.customer_name;

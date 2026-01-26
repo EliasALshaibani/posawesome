@@ -11,7 +11,7 @@ from erpnext.accounts.doctype.loyalty_program.loyalty_program import (
     get_loyalty_program_details_with_points,
 )
 from frappe.utils.caching import redis_cache
-from .utils import get_active_pos_profile
+from .utils import fetch_sales_person_names
 
 
 def get_customer_groups(pos_profile):
@@ -19,15 +19,23 @@ def get_customer_groups(pos_profile):
     if pos_profile.get("customer_groups"):
         # Get items based on the item groups defined in the POS profile
         for data in pos_profile.get("customer_groups"):
+            group_name = data.get("customer_group") if data else None
+            if not group_name:
+                continue
             customer_groups.extend(
-                [d.get("name") for d in get_child_nodes("Customer Group", data.get("customer_group"))]
+                [d.get("name") for d in get_child_nodes("Customer Group", group_name)]
             )
 
     return list(set(customer_groups))
 
 
 def get_child_nodes(group_type, root):
-    lft, rgt = frappe.db.get_value(group_type, root, ["lft", "rgt"])
+    if not root:
+        return []
+    result = frappe.db.get_value(group_type, root, ["lft", "rgt"])
+    if not result:
+        return []
+    lft, rgt = result
     return frappe.get_all(
         group_type,
         filters={"lft": [">=", lft], "rgt": ["<=", rgt]},
@@ -353,25 +361,24 @@ def set_customer_info(customer, fieldname, value=""):
 def get_customer_addresses(customer):
     return frappe.db.sql(
         """
-	SELECT
-	    address.name,
-	    address.address_line1,
-	    address.address_line2,
-	    address.address_title,
-	    address.city,
-	    address.state,
-	    address.country,
-	    address.address_type
-	FROM `tabAddress` as address
-	INNER JOIN `tabDynamic Link` AS link
-				ON address.name = link.parent
-	WHERE link.link_doctype = 'Customer'
-	    AND link.link_name = '{0}'
-	    AND address.disabled = 0
-	ORDER BY address.name
-	""".format(
-            customer
-        ),
+        SELECT
+            address.name,
+            address.address_line1,
+            address.address_line2,
+            address.address_title,
+            address.city,
+            address.state,
+            address.country,
+            address.address_type
+        FROM `tabAddress` as address
+        INNER JOIN `tabDynamic Link` AS link
+                                ON address.name = link.parent
+        WHERE link.link_doctype = 'Customer'
+            AND link.link_name = %s
+            AND address.disabled = 0
+        ORDER BY address.name
+        """,
+        (customer,),
         as_dict=1,
     )
 
@@ -399,28 +406,4 @@ def make_address(args):
 
 @frappe.whitelist()
 def get_sales_person_names():
-    import json
-
-    print("Fetching sales persons...")
-    try:
-        profile = get_active_pos_profile()
-        allowed = []
-        if profile:
-            allowed = [
-                d.get("sales_person") for d in profile.get("posa_sales_persons", []) if d.get("sales_person")
-            ]
-        filters = {"enabled": 1}
-        if allowed:
-            filters["name"] = ["in", allowed]
-        sales_persons = frappe.get_list(
-            "Sales Person",
-            filters=filters,
-            fields=["name", "sales_person_name"],
-            limit_page_length=100000,
-        )
-        print(f"Found {len(sales_persons)} sales persons: {json.dumps(sales_persons)}")
-        return sales_persons
-    except Exception as e:
-        print(f"Error fetching sales persons: {str(e)}")
-        frappe.log_error(f"Error fetching sales persons: {str(e)}", "POS Sales Person Error")
-        return []
+    return fetch_sales_person_names()

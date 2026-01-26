@@ -995,12 +995,14 @@ export async function searchStoredItems({ search = "", itemGroup = "", limit = 1
 	try {
 		await checkDbHealth();
 		if (!db.isOpen()) await db.open();
+		const normalizedGroup = typeof itemGroup === "string" ? itemGroup.trim() : "";
 		let collection = db.table("items");
-		if (itemGroup && itemGroup.toLowerCase() !== "all") {
-			collection = collection.where("item_group").equalsIgnoreCase(itemGroup);
+		if (normalizedGroup && normalizedGroup.toLowerCase() !== "all") {
+			collection = collection.where("item_group").equalsIgnoreCase(normalizedGroup);
 		}
-		if (search) {
-			const term = search.toLowerCase();
+		const normalizedSearch = typeof search === "string" ? search.trim() : "";
+		if (normalizedSearch) {
+			const term = normalizedSearch.toLowerCase();
 			collection = collection.filter((it) => {
 				const nameMatch = it.item_name && it.item_name.toLowerCase().includes(term);
 				const codeMatch = it.item_code && it.item_code.toLowerCase().includes(term);
@@ -1009,8 +1011,17 @@ export async function searchStoredItems({ search = "", itemGroup = "", limit = 1
 					: it.item_barcode && String(it.item_barcode).toLowerCase().includes(term);
 				return nameMatch || codeMatch || barcodeMatch;
 			});
+
+			const unique = Array.from(map.values());
+			return unique.slice(offset, offset + limit);
 		}
-		return await collection.offset(offset).limit(limit).toArray();
+
+		let collection = applyItemGroupFilter(db.table("items"));
+		if (words.length) {
+			collection = collection.filter(matchesAllWords);
+		}
+		const res = await collection.offset(offset).limit(limit).toArray();
+		return res;
 	} catch (e) {
 		console.error("Failed to query stored items", e);
 		return [];
@@ -1194,6 +1205,14 @@ export async function forceClearAllCache() {
 	memory.tax_template_cache = {};
 	memory.tax_inclusive = false;
 	memory.manual_offline = false;
+	memory.translation_cache = {};
+	memory.pricing_rules_snapshot = [];
+	memory.pricing_rules_context = null;
+	memory.pricing_rules_last_sync = null;
+	memory.pricing_rules_stale_at = null;
+	memory.print_template = "";
+	memory.terms_and_conditions = "";
+	memory.cache_ready = false;
 
 	try {
 		await Dexie.delete("posawesome_offline");

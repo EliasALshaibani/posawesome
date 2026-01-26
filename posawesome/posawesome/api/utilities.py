@@ -3,16 +3,24 @@
 # For license information, please see license.txt
 
 from __future__ import unicode_literals
-import json
+
 import frappe
 from frappe.utils import cstr, add_to_date, get_datetime
 from typing import List, Dict
 import time
 import os
-import psutil
+import re
+
+try:
+    import psutil
+except ImportError:  # pragma: no cover - optional dependency
+    psutil = None
+
+_PSUTIL_MISSING_LOGGED = False
 import functools
 
-from .utils import get_item_groups, get_active_pos_profile
+from .utils import get_item_groups, fetch_sales_person_names
+from posawesome.utils import get_build_version
 
 
 def get_version():
@@ -42,6 +50,10 @@ def get_app_branch(app):
 
 def get_root_of(doctype):
     """Get root element of a DocType with a tree structure"""
+    # Security: Validate doctype to prevent SQL injection since it's used in FROM clause
+    if not re.match(r"^[a-zA-Z0-9 _-]+$", doctype):
+        return None
+
     result = frappe.db.sql(
         """select t1.name from `tab{0}` t1 where
 		(select count(*) from `tab{1}` t2 where
@@ -67,8 +79,9 @@ def get_item_group_condition(pos_profile, item_groups=None):
     cond = " and 1=1"
     item_groups = item_groups or get_item_groups(pos_profile)
     if item_groups:
-        cond = " and item_group in (%s)" % (", ".join(["%s"] * len(item_groups)))
-        return cond % tuple(item_groups)
+        # Security: Escape values to prevent SQL injection
+        escaped_groups = [frappe.db.escape(g) for g in item_groups]
+        cond = " and item_group in ({0})".format(", ".join(escaped_groups))
 
     return cond
 
@@ -137,6 +150,7 @@ def get_selling_price_lists():
     )
 
 
+@frappe.whitelist()
 def get_app_info() -> Dict[str, List[Dict[str, str]]]:
     """
     Return a list of installed apps and their versions.
@@ -155,7 +169,7 @@ def get_app_info() -> Dict[str, List[Dict[str, str]]]:
 
         apps_info.append({"app_name": app_name, "installed_version": app_version})
 
-    return {"apps": apps_info}
+    return {"apps": apps_info, "build_version": get_build_version()}
 
 
 def ensure_child_doctype(doc, table_field, child_doctype):
@@ -167,31 +181,7 @@ def ensure_child_doctype(doc, table_field, child_doctype):
 
 @frappe.whitelist()
 def get_sales_person_names():
-    import json
-
-    print("Fetching sales persons...")
-    try:
-        profile = get_active_pos_profile()
-        allowed = []
-        if profile:
-            allowed = [
-                d.get("sales_person") for d in profile.get("posa_sales_persons", []) if d.get("sales_person")
-            ]
-        filters = {"enabled": 1}
-        if allowed:
-            filters["name"] = ["in", allowed]
-        sales_persons = frappe.get_list(
-            "Sales Person",
-            filters=filters,
-            fields=["name", "sales_person_name"],
-            limit_page_length=100000,
-        )
-        print(f"Found {len(sales_persons)} sales persons: {json.dumps(sales_persons)}")
-        return sales_persons
-    except Exception as e:
-        print(f"Error fetching sales persons: {str(e)}")
-        frappe.log_error(f"Error fetching sales persons: {str(e)}", "POS Sales Person Error")
-        return []
+    return fetch_sales_person_names()
 
 
 @frappe.whitelist()
@@ -359,33 +349,33 @@ def get_database_usage():
 
 @frappe.whitelist()
 def get_server_usage():
-    try:
+    global _PSUTIL_MISSING_LOGGED
 
-        cpu_percent = psutil.cpu_percent(interval=0.5)
-        mem = psutil.virtual_memory()
-        memory_percent = mem.percent
-        memory_total = mem.total
-        memory_used = mem.used
-        memory_available = mem.available
-        load_avg = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
-        uptime = time.time() - psutil.boot_time()
-    except ImportError:
-        cpu_percent = None
-        memory_percent = None
-        memory_total = None
-        memory_used = None
-        memory_available = None
-        load_avg = (None, None, None)
-        uptime = None
-    except Exception as e:
-        frappe.log_error(f"Server usage error: {e}")
-        cpu_percent = None
-        memory_percent = None
-        memory_total = None
-        memory_used = None
-        memory_available = None
-        load_avg = (None, None, None)
-        uptime = None
+    cpu_percent = None
+    memory_percent = None
+    memory_total = None
+    memory_used = None
+    memory_available = None
+    load_avg = (None, None, None)
+    uptime = None
+
+    if psutil is None:
+        if not _PSUTIL_MISSING_LOGGED:
+            frappe.log_error("psutil is not installed; server usage metrics unavailable.")
+            _PSUTIL_MISSING_LOGGED = True
+    else:
+        try:
+
+            cpu_percent = psutil.cpu_percent(interval=0.5)
+            mem = psutil.virtual_memory()
+            memory_percent = mem.percent
+            memory_total = mem.total
+            memory_used = mem.used
+            memory_available = mem.available
+            load_avg = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
+            uptime = time.time() - psutil.boot_time()
+        except Exception as e:
+            frappe.log_error(f"Server usage error: {e}")
     return {
         "cpu_percent": cpu_percent,
         "memory_percent": memory_percent,

@@ -5,13 +5,18 @@
 from __future__ import unicode_literals
 import json
 import frappe
-from frappe.utils import nowdate
+from frappe.utils import nowdate, flt
 from frappe import _
 from erpnext.accounts.party import get_party_bank_account
 from erpnext.accounts.doctype.payment_request.payment_request import (
     get_dummy_message,
     get_existing_payment_request_amount,
 )
+from posawesome.posawesome.api.utilities import ensure_child_doctype
+
+
+def get_posawesome_credit_redeem_remark(invoice_name):
+    return _("POS Awesome credit redemption for Sales Invoice {0}").format(invoice_name)
 
 
 @frappe.whitelist()
@@ -259,6 +264,7 @@ def redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, c
 
                 jv_doc.flags.ignore_permissions = True
                 frappe.flags.ignore_account_permission = True
+                jv_doc.user_remark = get_posawesome_credit_redeem_remark(invoice_doc.name)
                 jv_doc.set_missing_values()
                 try:
                     jv_doc.save()
@@ -314,20 +320,49 @@ def get_available_credit(customer, company):
         {
             "outstanding_amount": ["<", 0],
             "docstatus": 1,
-            "is_return": 0,
             "customer": customer,
             "company": company,
         },
-        ["name", "outstanding_amount"],
+        ["name", "outstanding_amount", "is_return"],
     )
+
+    allocations = {}
+    invoice_names = [row.name for row in outstanding_invoices]
+    if invoice_names:
+        placeholders = ", ".join(["%s"] * len(invoice_names))
+        payment_allocations = frappe.db.sql(
+            f"""
+                select
+                    per.reference_name,
+                    sum(per.allocated_amount) as allocated_amount
+                from `tabPayment Entry Reference` per
+                inner join `tabPayment Entry` pe on pe.name = per.parent
+                where per.reference_doctype = 'Sales Invoice'
+                    and per.reference_name in ({placeholders})
+                    and pe.docstatus = 1
+                    and pe.payment_type = 'Pay'
+                group by per.reference_name
+            """,
+            invoice_names,
+            as_dict=True,
+        )
+
+        allocations = {row.reference_name: flt(row.allocated_amount) for row in payment_allocations}
 
     for row in outstanding_invoices:
         outstanding_amount = -(row.outstanding_amount)
+        cash_paid = allocations.get(row.name, 0)
+        remaining_credit = flt(outstanding_amount - cash_paid)
+
+        if remaining_credit <= 0:
+            continue
+
         row = {
             "type": "Invoice",
             "credit_origin": row.name,
-            "total_credit": outstanding_amount,
+            "total_credit": remaining_credit,
             "credit_to_redeem": 0,
+            "source_type": "Sales Return" if row.is_return else "Sales Invoice",
         }
 
         total_credit.append(row)
@@ -350,6 +385,7 @@ def get_available_credit(customer, company):
             "credit_origin": row.name,
             "total_credit": row.unallocated_amount,
             "credit_to_redeem": 0,
+            "source_type": "Payment Entry",
         }
 
         total_credit.append(row)

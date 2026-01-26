@@ -6,14 +6,56 @@ import {
 	initPersistWorker,
 	tableForKey,
 } from "./core.js";
-import { getAllByCursor } from "./db-utils.js";
 import { clearPriceListCache } from "./items.js";
 import Dexie from "dexie/dist/dexie.mjs";
 
+const CACHE_STRUCTURE = {
+	items: ["item_code", "item_name", "item_group", "barcodes", "serials", "batches"],
+	item_prices: ["price_list", "item_code", "price_list_rate", "timestamp"],
+	customers: ["name", "customer_name", "mobile_no", "email_id", "tax_id"],
+	local_stock: ["key", "value"],
+	coupons: ["code", "valid_from", "valid_upto"],
+	item_groups: ["name", "parent_item_group"],
+	translations: ["key", "language"],
+	pricing_rules: ["snapshot", "context", "stale_at"],
+};
+
+function hashStructure(structure) {
+	const json = JSON.stringify(structure);
+	let hash = 0;
+	for (let i = 0; i < json.length; i++) {
+		const chr = json.charCodeAt(i);
+		hash = (hash << 5) - hash + chr;
+		hash |= 0; // Convert to 32bit integer
+	}
+	return Math.abs(hash);
+}
+
+function computeCacheVersion() {
+	const structureHash = hashStructure(CACHE_STRUCTURE);
+	if (typeof localStorage === "undefined") {
+		return structureHash;
+	}
+
+	const storedHash = localStorage.getItem("posa_cache_structure_hash");
+	const storedVersion = parseInt(localStorage.getItem("posa_cache_version") || "1", 10) || 1;
+
+	if (!storedHash || storedHash !== String(structureHash)) {
+		const nextVersion = storedVersion + 1;
+		localStorage.setItem("posa_cache_structure_hash", String(structureHash));
+		localStorage.setItem("posa_cache_version", String(nextVersion));
+		return nextVersion;
+	}
+
+	return storedVersion;
+}
+
 // Increment this number whenever the cache data structure changes
-export const CACHE_VERSION = 1;
+export const CACHE_VERSION = computeCacheVersion();
 
 export const MAX_QUEUE_ITEMS = 1000;
+
+let cacheUsageEstimatePromise = null;
 
 // Memory cache object
 export const memory = {
@@ -35,6 +77,10 @@ export const memory = {
 	translation_cache: {},
 	coupons_cache: {},
 	item_groups_cache: [],
+	pricing_rules_snapshot: [],
+	pricing_rules_context: null,
+	pricing_rules_last_sync: null,
+	pricing_rules_stale_at: null,
 	items_last_sync: null,
 	customers_last_sync: null,
 	// Track the current cache schema version
@@ -125,6 +171,51 @@ export function reduceCacheUsage() {
 	persist("stock_cache_ready", memory.stock_cache_ready);
 	persist("coupons_cache", memory.coupons_cache);
 	persist("item_groups_cache", memory.item_groups_cache);
+}
+
+function sanitiseSnapshot(snapshot = []) {
+	if (!Array.isArray(snapshot)) {
+		return [];
+	}
+	try {
+		return JSON.parse(JSON.stringify(snapshot));
+	} catch (error) {
+		console.error("Failed to sanitise pricing rules snapshot", error);
+		return [];
+	}
+}
+
+export function savePricingRulesSnapshot(snapshot = [], context = null, staleAt = null) {
+	memory.pricing_rules_snapshot = sanitiseSnapshot(snapshot);
+	memory.pricing_rules_context = context || null;
+	memory.pricing_rules_last_sync = new Date().toISOString();
+	memory.pricing_rules_stale_at = staleAt || null;
+
+	persist("pricing_rules_snapshot", memory.pricing_rules_snapshot);
+	persist("pricing_rules_context", memory.pricing_rules_context);
+	persist("pricing_rules_last_sync", memory.pricing_rules_last_sync);
+	persist("pricing_rules_stale_at", memory.pricing_rules_stale_at);
+}
+
+export function getCachedPricingRulesSnapshot() {
+	return {
+		snapshot: Array.isArray(memory.pricing_rules_snapshot) ? memory.pricing_rules_snapshot : [],
+		context: memory.pricing_rules_context || null,
+		lastSync: memory.pricing_rules_last_sync || null,
+		staleAt: memory.pricing_rules_stale_at || null,
+	};
+}
+
+export function clearPricingRulesSnapshot() {
+	memory.pricing_rules_snapshot = [];
+	memory.pricing_rules_context = null;
+	memory.pricing_rules_last_sync = null;
+	memory.pricing_rules_stale_at = null;
+
+	persist("pricing_rules_snapshot", memory.pricing_rules_snapshot);
+	persist("pricing_rules_context", memory.pricing_rules_context);
+	persist("pricing_rules_last_sync", memory.pricing_rules_last_sync);
+	persist("pricing_rules_stale_at", memory.pricing_rules_stale_at);
 }
 
 // --- Generic getters and setters for cached data ----------------------------
@@ -505,13 +596,22 @@ export async function clearAllCache() {
 	memory.item_details_cache = {};
 	memory.tax_template_cache = {};
 	memory.item_groups_cache = [];
+	memory.translation_cache = {};
+	memory.pricing_rules_snapshot = [];
+	memory.pricing_rules_context = null;
+	memory.pricing_rules_last_sync = null;
+	memory.pricing_rules_stale_at = null;
+	memory.print_template = "";
+	memory.terms_and_conditions = "";
 	memory.cache_version = CACHE_VERSION;
 	memory.tax_inclusive = false;
 	memory.manual_offline = false;
+	memory.cache_ready = false;
 
 	await clearPriceListCache();
 
 	persist("cache_version", CACHE_VERSION);
+	persist("cache_ready", false);
 }
 
 // Faster cache clearing without reopening the database
@@ -544,9 +644,17 @@ export async function forceClearAllCache() {
 	memory.item_details_cache = {};
 	memory.tax_template_cache = {};
 	memory.item_groups_cache = [];
+	memory.translation_cache = {};
+	memory.pricing_rules_snapshot = [];
+	memory.pricing_rules_context = null;
+	memory.pricing_rules_last_sync = null;
+	memory.pricing_rules_stale_at = null;
+	memory.print_template = "";
+	memory.terms_and_conditions = "";
 	memory.cache_version = CACHE_VERSION;
 	memory.tax_inclusive = false;
 	memory.manual_offline = false;
+	memory.cache_ready = false;
 
 	if (typeof localStorage !== "undefined") {
 		localStorage.setItem("posa_cache_version", CACHE_VERSION);
@@ -564,60 +672,119 @@ export async function forceClearAllCache() {
 	}
 
 	persist("cache_version", CACHE_VERSION);
+	persist("cache_ready", false);
 }
 
 /**
- * Estimates the current cache usage size in bytes and percentage
- * @returns {Promise<Object>} Object containing total, localStorage, and indexedDB sizes in bytes, and usage percentage
+ * Fallback IndexedDB size estimation by iterating over all records.
+ * This is only used when the StorageManager API is not available.
+ * @returns {Promise<number>} estimated IndexedDB usage in bytes
+ */
+async function estimateIndexedDbSizeFallback() {
+	if (!db.tables || !db.tables.length) {
+		return 0;
+	}
+
+	let total = 0;
+	for (const table of db.tables) {
+		try {
+			await db.transaction("r", db.table(table.name), async () => {
+				await db.table(table.name).each((item) => {
+					try {
+						total += JSON.stringify(item).length * 2;
+					} catch (stringifyErr) {
+						console.warn("Failed to measure IndexedDB entry size", stringifyErr);
+					}
+				});
+			});
+		} catch (tableErr) {
+			console.warn(`Failed to inspect table ${table.name} for cache usage`, tableErr);
+		}
+	}
+
+	return total;
+}
+
+/**
+ * Estimates the current cache usage size in bytes and percentage.
+ * @returns {Promise<Object>} usage breakdown for localStorage and IndexedDB
  */
 export async function getCacheUsageEstimate() {
-	try {
-		await checkDbHealth();
-		// Calculate localStorage size
-		let localStorageSize = 0;
-		if (typeof localStorage !== "undefined") {
-			for (let i = 0; i < localStorage.length; i++) {
-				const key = localStorage.key(i);
-				if (key && key.startsWith("posa_")) {
-					const value = localStorage.getItem(key) || "";
-					localStorageSize += (key.length + value.length) * 2; // UTF-16 characters are 2 bytes each
-				}
-			}
-		}
-
-		// Estimate IndexedDB size using cursor to avoid loading everything in memory
-		let indexedDBSize = 0;
-		try {
-			if (db.isOpen()) {
-				for (const table of db.tables) {
-					const entries = await getAllByCursor(table.name);
-					indexedDBSize += entries.reduce((size, item) => {
-						const itemSize = JSON.stringify(item).length * 2; // UTF-16 characters
-						return size + itemSize;
-					}, 0);
-				}
-			}
-		} catch (e) {
-			console.error("Failed to calculate IndexedDB size", e);
-		}
-
-		const totalSize = localStorageSize + indexedDBSize;
-		const maxSize = 50 * 1024 * 1024; // Assume 50MB as max size
-		const usagePercentage = Math.min(100, Math.round((totalSize / maxSize) * 100));
-
-		return {
-			total: totalSize,
-			localStorage: localStorageSize,
-			indexedDB: indexedDBSize,
-			percentage: usagePercentage,
-		};
-	} catch (e) {
-		console.error("Failed to estimate cache usage", e);
-		return {
-			total: 0,
-			localStorage: 0,
-			indexedDB: 0,
-			percentage: 0,
-		};
+	if (cacheUsageEstimatePromise) {
+		return cacheUsageEstimatePromise;
 	}
+
+	cacheUsageEstimatePromise = (async () => {
+		try {
+			await checkDbHealth();
+			let localStorageSize = 0;
+			if (typeof localStorage !== "undefined") {
+				for (let i = 0; i < localStorage.length; i++) {
+					const key = localStorage.key(i);
+					if (key && key.startsWith("posa_")) {
+						const value = localStorage.getItem(key) || "";
+						localStorageSize += (key.length + value.length) * 2;
+					}
+				}
+			}
+
+			let totalSize = 0;
+			let indexedDBSize = 0;
+			let maxSize = 50 * 1024 * 1024;
+
+			if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.estimate) {
+				try {
+					const { usage, quota } = await navigator.storage.estimate();
+					if (typeof usage === "number" && usage >= 0) {
+						totalSize = usage;
+						indexedDBSize = Math.max(totalSize - localStorageSize, 0);
+					}
+					if (typeof quota === "number" && quota > 0) {
+						maxSize = quota;
+					}
+				} catch (estimateErr) {
+					console.warn("StorageManager estimate failed", estimateErr);
+				}
+			}
+
+			if (!totalSize) {
+				if (!db.isOpen()) {
+					try {
+						await db.open();
+					} catch (openErr) {
+						console.warn("Failed to open IndexedDB for cache estimation", openErr);
+						return {
+							total: localStorageSize,
+							localStorage: localStorageSize,
+							indexedDB: 0,
+							percentage: Math.min(100, Math.round((localStorageSize / maxSize) * 100)),
+						};
+					}
+				}
+				indexedDBSize = await estimateIndexedDbSizeFallback();
+				totalSize = localStorageSize + indexedDBSize;
+			}
+
+			const usagePercentage = maxSize ? Math.min(100, Math.round((totalSize / maxSize) * 100)) : 0;
+
+			return {
+				total: totalSize,
+				localStorage: localStorageSize,
+				indexedDB: indexedDBSize,
+				percentage: usagePercentage,
+			};
+		} catch (e) {
+			console.error("Failed to estimate cache usage", e);
+			return {
+				total: 0,
+				localStorage: 0,
+				indexedDB: 0,
+				percentage: 0,
+			};
+		} finally {
+			cacheUsageEstimatePromise = null;
+		}
+	})();
+
+	return cacheUsageEstimatePromise;
 }
