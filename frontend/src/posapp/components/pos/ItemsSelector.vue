@@ -546,23 +546,7 @@
 						hide-details
 						v-model="item_group"
 					></v-select> -->
-					<v-btn-toggle
-						v-model="item_group"
-						color="primary"
-						mandatory
-						rounded
-						group
-						class="flex-wrap"
-  						>
-							<v-btn
-								v-for="group in items_group"
-								:key="group"
-								:value="group"
-								size="small"
-    							>
-      							{{ group }}
-    						</v-btn>
-  					</v-btn-toggle>
+					
 				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown !== false">
 					<v-text-field
@@ -5367,7 +5351,7 @@ export default {
 }
 
 .card-item-content {
-	padding: 12px 16px 16px;
+	padding: 1px 1px 1px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -5376,8 +5360,8 @@ export default {
 
 .card-item-header {
 	border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-	padding-bottom: 8px;
-	margin-bottom: 4px;
+	padding-bottom: 0px;
+	margin-bottom: 0px;
 }
 
 .card-item-name {
@@ -5414,14 +5398,14 @@ export default {
 .card-item-details {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 0px;
 	flex: 1;
 }
 
 .card-item-price {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 0px;
 }
 
 .primary-price {
