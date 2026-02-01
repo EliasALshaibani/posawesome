@@ -5727,7 +5727,7 @@ export default {
 /* Responsive breakpoints */
 @media (max-width: 1200px) {
 	.items-card-grid {
-		grid-template-columns: repeat(2, 1fr);
+		grid-template-columns: repeat(6, 1fr);
 		gap: 12px;
 		padding: 12px;
 	}
