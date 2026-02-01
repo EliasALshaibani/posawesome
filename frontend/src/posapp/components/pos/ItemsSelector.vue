@@ -5463,7 +5463,7 @@ export default {
 
 .currency-symbol {
 	opacity: 0.8;
-	font-size: 0.85em;
+	font-size: 0.7em;
 	font-family:
 		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
 		sans-serif;
