@@ -5452,6 +5452,7 @@ export default {
 }
 
 .last-rate-label {
+	font-size: 0.5rem;
 	font-weight: 600;
 	opacity: 0.8;
 }
