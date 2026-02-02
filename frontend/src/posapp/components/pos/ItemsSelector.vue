@@ -5529,7 +5529,7 @@ export default {
 }
 
 .stock-uom {
-	font-size: 0.75rem;
+	font-size: 0.5rem;
 	color: var(--pos-text-secondary, #6c757d);
 	font-weight: 500;
 }
