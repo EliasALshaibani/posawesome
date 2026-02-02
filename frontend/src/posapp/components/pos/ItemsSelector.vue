@@ -546,7 +546,23 @@
 						hide-details
 						v-model="item_group"
 					></v-select> -->
-					
+					<v-btn-toggle
+						v-model="item_group"
+						color="primary"
+						mandatory
+						rounded
+						group
+						class="flex-wrap"
+  						>
+							<v-btn
+								v-for="group in items_group"
+								:key="group"
+								:value="group"
+								size="small"
+    							>
+      							{{ group }}
+    						</v-btn>
+  					</v-btn-toggle>
 				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown !== false">
 					<v-text-field
@@ -4580,12 +4596,12 @@ export default {
 		},
 		cardRowHeight() {
 			if (this.windowWidth <= 768) {
-				return 260;
+				return 130;
 			}
 			if (this.windowWidth <= 1200) {
-				return 280;
+				return 130;
 			}
-			return 300;
+			return 130;
 		},
 		cardSlotHeight() {
 			return this.cardRowHeight + this.cardGap;
@@ -4597,14 +4613,14 @@ export default {
 			const columns = Math.max(1, this.cardColumns);
 			const containerWidth = this.cardContainerWidth || 0;
 			if (!containerWidth) {
-				return 240;
+				return 142;
 			}
 
 			const gapTotal = this.cardGap * (columns - 1);
 			const paddingTotal = this.cardPadding * 2;
 			const available = Math.max(0, containerWidth - gapTotal - paddingTotal);
 			const width = Math.floor(available / columns);
-			return Math.max(180, width);
+			return Math.max(100, width);
 		},
 		displayedItems() {
 			// PERF: Avoid unnecessary array cloning ([...this.filteredItems]) as it creates garbage and O(N) cost on every render
@@ -5264,6 +5280,7 @@ export default {
 	padding: 16px;
 	contain: layout style;
 	box-sizing: border-box;
+	margin-top: 20px;
 }
 
 @media (max-width: 1200px) {
@@ -5290,7 +5307,7 @@ export default {
 	cursor: pointer;
 	display: flex;
 	flex-direction: column;
-	height: auto;
+	height: 80px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 	will-change: transform;
 	backface-visibility: hidden;
@@ -5727,7 +5744,7 @@ export default {
 /* Responsive breakpoints */
 @media (max-width: 1200px) {
 	.items-card-grid {
-		grid-template-columns: repeat(6, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 12px;
 		padding: 12px;
 	}
