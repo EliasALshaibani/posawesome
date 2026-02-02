@@ -5457,6 +5457,7 @@ export default {
 }
 
 .last-rate-value {
+	font-size: 0.6rem;
 	font-weight: 700;
 	color: var(--primary-color, #1976d2);
 }
