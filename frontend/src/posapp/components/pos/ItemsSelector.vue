@@ -5400,7 +5400,7 @@ export default {
 }
 
 .card-item-code {
-	font-size: 0.75rem;
+	font-size: 0.5rem;
 	color: var(--pos-text-secondary, #6c757d);
 	font-weight: 500;
 	background: rgba(0, 0, 0, 0.04);
@@ -5514,6 +5514,7 @@ export default {
 }
 
 .stock-amount {
+	font-size:0.5rem;
 	font-weight: 600;
 	font-family:
 		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
