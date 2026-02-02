@@ -5465,7 +5465,7 @@ export default {
 .last-rate-uom {
 	margin-left: 2px;
 	font-weight: 600;
-	font-size: 0.78rem;
+	font-size: 0.5rem;
 	opacity: 0.8;
 }
 
