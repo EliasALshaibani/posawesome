@@ -4613,7 +4613,7 @@ export default {
 			const columns = Math.max(1, this.cardColumns);
 			const containerWidth = this.cardContainerWidth || 0;
 			if (!containerWidth) {
-				return 142;
+				return 102;
 			}
 
 			const gapTotal = this.cardGap * (columns - 1);
